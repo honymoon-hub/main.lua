@@ -2870,15 +2870,14 @@ local function loadPayomboyUIEngine()
     	init.create_corner(10,main)
     	main.ClipsDescendants = true
 
--- // 🖼️ PayomboyZ Custom Background Artwork
     local bgImageLabel = Instance.new("ImageLabel", main)
     bgImageLabel.Name = "MangaArtBackground"
-    bgImageLabel.Size = UDim2.new(1, 0, 1, 0)       -- ขยายขนาดให้เต็ม 100% ทั้งกว้างและสูง
+    bgImageLabel.Size = UDim2.new(1, 0, 1, 0)
     bgImageLabel.Position = UDim2.new(0, 0, 0, 0)
     bgImageLabel.BackgroundTransparency = 1
-    bgImageLabel.ScaleType = Enum.ScaleType.Stretch -- เปลี่ยนเป็น Stretch เพื่อให้รูปยืดเต็มกรอบพอดีจอ
-    bgImageLabel.ImageTransparency = 0             -- ให้รูปภาพชัดเต็มที่ (ไม่โปร่งใส)
-    bgImageLabel.ZIndex = 5                        -- ให้อยู่เลเยอร์บนสุด
+    bgImageLabel.ScaleType = Enum.ScaleType.Stretch
+    bgImageLabel.ImageTransparency = 0.55  -- 👈 ปรับค่าตรงนี้ให้สูงขึ้น (ยิ่งมากยิ่งจางลง มองเห็นตัวหนังสือชัดขึ้น)
+    bgImageLabel.ZIndex = 1
     bgImageLabel.Image = "https://raw.githubusercontent.com/honymoon-hub/main.lua/main/monch.png"
     
     -- สร้างมุมโค้งให้รูปภาพเข้ากับกรอบหน้าต่าง
@@ -2888,11 +2887,11 @@ local function loadPayomboyUIEngine()
     -- -- Subtle Dark Vignette & Gradient Tint Overlay to ensure text readability
     local bgOverlay = Instance.new("Frame", main)
     bgOverlay.Name = "GlassTintOverlay"
-    bgOverlay.Size = UDim2.fromScale(1, 1)
+    bgOverlay.Size = UDim2.new(1, 0, 1, 0)
     bgOverlay.BackgroundColor3 = Color3.fromRGB(14, 15, 20)
-    bgOverlay.BackgroundTransparency = 0.85
+    bgOverlay.BackgroundTransparency = 0.50  -- 👈 ปรับค่าตรงนี้ให้ลดลง (ยิ่งน้อยยิ่งมืดทึบ ช่วยตัดกับตัวหนังสือ)
     bgOverlay.BorderSizePixel = 0
-    bgOverlay.ZIndex = 2              -- ให้อยู่ข้างหลังรูปภาพ
+    bgOverlay.ZIndex = 2
     init.create_corner(10, bgOverlay)
 
     	local bgGrad = Instance.new("UIGradient", bgOverlay)
