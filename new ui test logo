@@ -117,7 +117,7 @@ local function Palette(spec)
 end
 
 local Themes = {
-    Order = { "Overworld", "Halloween", "Light", "Dark", "Underground", "Castle", "Ghost House", "Star Road", "Desert", "Ice Land", "Jungle", "Sky World" },
+    Order = { "Honymoon", "Overworld", "Halloween", "Light", "Dark", "Underground", "Castle", "Ghost House", "Star Road", "Desert", "Ice Land", "Jungle", "Sky World" },
     Overworld = Palette({
         Backdrop = "C4D6EC", BackdropAlt = "E2E9F2", Topbar = "7092CC", Sidebar = "96563E", SidebarAlt = "804834",
         SidebarText = "FCF2E6", SidebarMuted = "E2C4B0", TabActive = "FAF4E9", TabActiveText = "B84034",
@@ -222,6 +222,33 @@ local Themes = {
         Brick = "A46042", BrickDark = "683A28", Grass = "74B45C", GrassDark = "4E8840",
         Knob = "FFFFFF", Ink = "2E2838", White = "FFFFFF", Black = "000000",
     }),
+    Honymoon = Palette({
+    Backdrop = "FCE4EC",      -- พื้นหลังชมพูอ่อนพาสเทล
+    BackdropAlt = "F8BBD0",   -- พื้นหลังสำรอง
+    Topbar = "C2185B",        -- แถบบนสีชมพูกลีบกุหลาบ
+    Sidebar = "8D6E63",       -- แถบข้างสีน้ำตาลอ่อน (ขนน้องมอนชิชิ)
+    SidebarAlt = "6D4C41",    -- แถบข้างสำรอง
+    SidebarText = "FFFFFF",   -- ตัวหนังสือแถบข้าง
+    SidebarMuted = "D7CCC8",  -- ตัวหนังสือรอง
+    TabActive = "FF80AB",     -- แท็บที่เลือก (ชมพูสดใส)
+    TabActiveText = "FFFFFF", -- ตัวหนังสือแท็บที่เลือก
+    Panel = "FFFFFF",         -- หน้าต่างการทำงาน
+    PanelHeader = "FCE4EC",   -- หัวข้อแพเนล
+    Element = "FFF0F5",       -- ปุ่มหรือกล่ององค์ประกอบ
+    Hover = "F8BBD0",         -- สีเวลาเอาเมาส์ชี้
+    Outline = "4E342E",       -- ขอบเส้น (น้ำตาลเข้ม)
+    Shadow = "BCAAA4",        -- เงา
+    Text = "3E2723",          -- ตัวหนังสือหลัก (น้ำตาลเข้มตัดกับชมพูได้ดี)
+    SubText = "795548",       -- ตัวหนังสือรอง
+    Muted = "A1887F",         -- ตัวหนังสือจาง
+    Track = "E0F2F1",         -- แทร็กสไลเดอร์
+    Accent = "E91E63",        -- สีหลักไฮไลต์ (ชมพูเข้ม)
+    AccentDark = "AD1457",    -- สีหลักตอนกด
+    Good = "81C784",          -- สีสถานะสำเร็จ (เขียวพาสเทล)
+    Warn = "FFB74D",          -- สีแจ้งเตือน (ส้มพาสเทล)
+    Bad = "E57373",           -- สีผิดพลาด (แดงพาสเทล)
+    Coin = "FFD54F",          -- สีเหรียญ/ไอคอน (เหลืองทองมอนชิชิ)
+    })
 }
 
 local State = {
