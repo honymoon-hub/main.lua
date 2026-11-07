@@ -9,7 +9,7 @@ local DISCORD = "discord.gg/jA2qruQZN2"
 
 local GAMES = {
     [122446657157717] = "Sniper Arena",
-    -- เอาแมพอื่นๆ มาหยอดเพิ่มตรงนี้ได้เรื่อยๆ แบบในรูปตัวอย่าง
+    [126042865144779] = "Sniper Arena",
 }
 
 local function Notify(text, detail)
