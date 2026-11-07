@@ -5,8 +5,9 @@ end
 local BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/All/"
 local DISCORD = "discord.gg/jA2qruQZN2"
 
+
 local GAMES = {
-    [122446657157717] = { file = "Sniper Arena", version = 1 },
+    [122446657157717] = "Sniper Arena",
 }
 
 local StarterGui = game:GetService("StarterGui")
@@ -56,25 +57,25 @@ local function Fetch(url)
     return nil, why
 end
 
--- ค้นหาข้อมูลเกมจาก PlaceId ในตารางรูปแบบใหม่
-local gameInfo = GAMES[game.PlaceId]
-if not gameInfo then
+-- เช็ค PlaceId จากตาราง GAMES แบบง่าย
+local scriptName = GAMES[game.PlaceId]
+if not scriptName then
     Notify("This game is not supported yet. Join " .. DISCORD .. " for the list.")
     return
 end
 
--- ดึงชื่อไฟล์จาก .file มาใช้งาน (และแทนที่เว้นวรรคด้วย %20)
-local fileName = (gameInfo.file:gsub(" ", "%%20"))
+-- แปลงชื่อไฟล์เผื่อมีเว้นวรรค (เช่น "Sniper Arena" เป็น "Sniper%20Arena")
+local fileName = (scriptName:gsub(" ", "%%20"))
 local source, why = Fetch(BASE .. fileName)
 
 if not source then
-    Notify("Could not download " .. gameInfo.file .. ". Check your connection and try again, or ask in " .. DISCORD, why)
+    Notify("Could not download " .. scriptName .. ". Check your connection and try again, or ask in " .. DISCORD, why)
     return
 end
 
 local chunk, compileErr = loadstring(source)
 if not chunk then
-    Notify(gameInfo.file .. " failed to load on this executor: " .. tostring(compileErr) .. ". Ask in " .. DISCORD)
+    Notify(scriptName .. " failed to load on this executor: " .. tostring(compileErr) .. ". Ask in " .. DISCORD)
     return
 end
 
@@ -82,5 +83,5 @@ local ok, trace = xpcall(chunk, function(err)
     return debug.traceback(tostring(err), 2)
 end)
 if not ok then
-    Notify(gameInfo.file .. " stopped with an error: " .. tostring(trace):match("^[^\n]*") .. ". Ask in " .. DISCORD, "\n" .. tostring(trace))
+    Notify(scriptName .. " stopped with an error: " .. tostring(trace):match("^[^\n]*") .. ". Ask in " .. DISCORD, "\n" .. tostring(trace))
 end
