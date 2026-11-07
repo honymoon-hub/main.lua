@@ -1,17 +1,13 @@
--- language: Lua, file: init.lua, target: Roblox Luau
--- *Production loader with robust fetch, retry, HTML filtering, and error tracing*
+-- language: Lua, file: loader, target: Roblox Luau
+-- *Debug loader to verify PlaceId matching*
 
 local StarterGui = game:GetService("StarterGui")
 
--- ตั้งค่าลิงก์เรโปและ Discord ของมึงตรงนี้
-local BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/All/"
-local OLD_BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/All/" -- เผื่อลิงก์สำรอง
-local DISCORD = "discord.gg/honymoon"
+local BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/"
+local DISCORD = "discord.gg/jA2qruQZN2"
 
--- แมป GameId หรือ PlaceId เข้ากับชื่อไฟล์สคริปต์
 local GAMES = {
     [122446657157717] = "Sniper Arena",
-    -- เพิ่มแมพอื่นตรงนี้ได้เรื่อยๆ เช่น [GameId] = "ชื่อไฟล์"
 }
 
 local function Notify(text, detail)
@@ -27,6 +23,16 @@ local function Notify(text, detail)
             task.wait(0.5)
         end
     end)
+end
+
+local currentPlaceId = game.PlaceId
+warn("[Honymoon Hub Debug] Current PlaceId is: " .. tostring(currentPlaceId))
+
+local name = GAMES[currentPlaceId]
+
+if not name then
+    Notify("Not supported! ID: " .. tostring(currentPlaceId))
+    return
 end
 
 local function LooksLikeScript(body)
@@ -59,22 +65,13 @@ local function Fetch(url)
     return nil, why
 end
 
--- ตรวจสอบว่าแมพนี้รองรับไหม (ใช้ PlaceId หรือ GameId ตามชอบ ตรงนี้เทียบกับ game.PlaceId)
-local gameIdentifier = game.PlaceId
-local name = GAMES[gameIdentifier]
-
-if not name then
-    Notify("This game is not supported yet. Join " .. DISCORD .. " for the list.")
-    return
-end
-
-local fileName = (name:gsub(" ", "%%20")) .. ".lua"
+local fileName = "All/" .. (name:gsub(" ", "%%20"))
 local source, why = Fetch(BASE .. fileName)
 if not source then
     source, why = Fetch(OLD_BASE .. fileName)
 end
 if not source then
-    Notify("Could not download " .. name .. ". Check connection, or ask in " .. DISCORD, why)
+    Notify("Could not download " .. name, why)
     return
 end
 
