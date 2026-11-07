@@ -1,8 +1,18 @@
 -- language: Lua, file: init.lua, target: Roblox Luau
--- *Honymoon Hub loader with integrated StarterGui retry notification system*
+-- *Production loader with robust fetch, retry, HTML filtering, and error tracing*
 
 local StarterGui = game:GetService("StarterGui")
-local currentPlaceId = game.PlaceId
+
+-- ตั้งค่าลิงก์เรโปและ Discord ของมึงตรงนี้
+local BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/All/"
+local OLD_BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/All/" -- เผื่อลิงก์สำรอง
+local DISCORD = "discord.gg/honymoon"
+
+-- แมป GameId หรือ PlaceId เข้ากับชื่อไฟล์สคริปต์
+local GAMES = {
+    [122446657157717] = "Sniper Arena",
+    -- เพิ่มแมพอื่นตรงนี้ได้เรื่อยๆ เช่น [GameId] = "ชื่อไฟล์"
+}
 
 local function Notify(text, detail)
     warn("[Honymoon Hub] " .. text, detail or "")
@@ -19,32 +29,67 @@ local function Notify(text, detail)
     end)
 end
 
-local ScriptRegistry = {
-    [122446657157717] = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/All/Sniper%20Arena",
-    -- ใส่เพิ่มตรงนี้ได้เรื่อยๆ
-}
-
-local UniversalFallback = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/All/Universal"
-
-local function executeRemoteScript(url)
-    local success, content = pcall(function() return game:HttpGet(url) end)
-    if success and content then
-        local chunk, err = loadstring(content)
-        if chunk then
-            local runSuccess, runErr = pcall(chunk)
-            if not runSuccess then
-                Notify("Runtime error: check console", tostring(runErr))
-            else
-                Notify("Script executed successfully!")
-            end
-        else
-            Notify("Compile error: check console", tostring(err))
-        end
-    else
-        Notify("Failed to fetch script URL")
-    end
+local function LooksLikeScript(body)
+    if type(body) ~= "string" or body == "" then return false end
+    local head = body:sub(1, 80)
+    return not (head:find("^%s*<") or head:find("^%d%d%d:"))
 end
 
-local targetUrl = ScriptRegistry[currentPlaceId] or UniversalFallback
-Notify("Loaded PlaceID: " .. tostring(currentPlaceId))
-executeRemoteScript(targetUrl)
+local function FetchOnce(url)
+    local ok, body = pcall(function() return game:HttpGet(url) end)
+    if ok and LooksLikeScript(body) then return body end
+
+    local send = request or http_request or (syn and syn.request) or (http and http.request)
+    if not send then return nil, ok and "bad reply from HttpGet" or tostring(body) end
+    local sent, reply = pcall(send, { Url = url, Method = "GET" })
+    if not sent or type(reply) ~= "table" then return nil, tostring(reply) end
+    if reply.StatusCode ~= 200 then return nil, "HTTP " .. tostring(reply.StatusCode) end
+    if not LooksLikeScript(reply.Body) then return nil, "bad reply body" end
+    return reply.Body
+end
+
+local function Fetch(url)
+    local why
+    for attempt = 1, 3 do
+        local body, err = FetchOnce(url)
+        if body then return body end
+        why = err
+        if attempt < 3 then task.wait(1) end
+    end
+    return nil, why
+end
+
+-- ตรวจสอบว่าแมพนี้รองรับไหม (ใช้ PlaceId หรือ GameId ตามชอบ ตรงนี้เทียบกับ game.PlaceId)
+local gameIdentifier = game.PlaceId
+local name = GAMES[gameIdentifier]
+
+if not name then
+    Notify("This game is not supported yet. Join " .. DISCORD .. " for the list.")
+    return
+end
+
+local fileName = (name:gsub(" ", "%%20")) .. ".lua"
+local source, why = Fetch(BASE .. fileName)
+if not source then
+    source, why = Fetch(OLD_BASE .. fileName)
+end
+if not source then
+    Notify("Could not download " .. name .. ". Check connection, or ask in " .. DISCORD, why)
+    return
+end
+
+local chunk, compileErr = loadstring(source)
+if not chunk then
+    Notify(name .. " failed to load: " .. tostring(compileErr))
+    return
+end
+
+Notify("Successfully loaded " .. name .. "!")
+
+local ok, trace = xpcall(chunk, function(err)
+    return debug.traceback(tostring(err), 2)
+end)
+
+if not ok then
+    Notify(name .. " stopped with an error", "\n" .. tostring(trace))
+end
