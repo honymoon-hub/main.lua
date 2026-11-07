@@ -8,7 +8,7 @@ local OLD_BASE = BASE .. "old/"
 local DISCORD = "discord.gg/jA2qruQZN2"
 
 local GAMES = {
-    [126042865144779] = "Sniper Arena",
+    [9534705677] = "Sniper Arena",
 }
 
 local function Notify(text, detail)
