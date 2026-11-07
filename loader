@@ -56,7 +56,7 @@ local function Fetch(url)
     return nil, why
 end
 
-local currentPlaceId = game.PlaceId
+local currentId = game.GameId
 local name = GAMES[currentPlaceId]
 
 if not name then
