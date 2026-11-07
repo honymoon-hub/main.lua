@@ -8,7 +8,6 @@ local OLD_BASE = BASE .. "old/"
 local DISCORD = "discord.gg/jA2qruQZN2"
 
 local GAMES = {
-    [122446657157717] = "Sniper Arena",
     [126042865144779] = "Sniper Arena",
 }
 
