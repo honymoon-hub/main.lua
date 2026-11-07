@@ -1,13 +1,15 @@
 -- language: Lua, file: loader, target: Roblox Luau
--- *Debug loader to verify PlaceId matching*
+-- *Multi-map dictionary loader mapped to GitHub raw repository*
 
 local StarterGui = game:GetService("StarterGui")
 
-local BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/"
+local BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/All/"
+local OLD_BASE = BASE .. "old/"
 local DISCORD = "discord.gg/jA2qruQZN2"
 
 local GAMES = {
     [122446657157717] = "Sniper Arena",
+    -- เอาแมพอื่นๆ มาหยอดเพิ่มตรงนี้ได้เรื่อยๆ แบบในรูปตัวอย่าง
 }
 
 local function Notify(text, detail)
@@ -23,16 +25,6 @@ local function Notify(text, detail)
             task.wait(0.5)
         end
     end)
-end
-
-local currentPlaceId = game.PlaceId
-warn("[Honymoon Hub Debug] Current PlaceId is: " .. tostring(currentPlaceId))
-
-local name = GAMES[currentPlaceId]
-
-if not name then
-    Notify("Not supported! ID: " .. tostring(currentPlaceId))
-    return
 end
 
 local function LooksLikeScript(body)
@@ -65,13 +57,21 @@ local function Fetch(url)
     return nil, why
 end
 
-local fileName = "All/" .. (name:gsub(" ", "%%20"))
+local currentPlaceId = game.PlaceId
+local name = GAMES[currentPlaceId]
+
+if not name then
+    Notify("This game is not supported yet. Join " .. DISCORD .. " for the list.")
+    return
+end
+
+local fileName = (name:gsub(" ", "%%20")) .. ".lua"
 local source, why = Fetch(BASE .. fileName)
 if not source then
     source, why = Fetch(OLD_BASE .. fileName)
 end
 if not source then
-    Notify("Could not download " .. name, why)
+    Notify("Could not download " .. name .. ". Check connection, or ask in " .. DISCORD, why)
     return
 end
 
