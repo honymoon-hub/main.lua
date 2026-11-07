@@ -6,7 +6,7 @@ local BASE = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads
 local DISCORD = "discord.gg/jA2qruQZN2"
 
 local GAMES = {
-    [9534705677] = "Sbiper Arena",
+    [122446657157717] = "Sbiper Arena",
 }
 
 local StarterGui = game:GetService("StarterGui")
