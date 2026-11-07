@@ -2,6 +2,11 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+if game.GameId ~= 9534705677 then
+    game:GetService("Players").LocalPlayer:Kick("Mario Hub: this script is for Sniper Arena only")
+    return
+end
+
 if not LPH_OBFUSCATED then
     local function Passthrough(fn) return fn end
     LPH_JIT, LPH_JIT_MAX, LPH_NO_VIRTUALIZE = Passthrough, Passthrough, Passthrough
