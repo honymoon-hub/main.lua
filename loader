@@ -12,7 +12,7 @@ local GAMES = {
 local StarterGui = game:GetService("StarterGui")
 
 local function Notify(text, detail)
-    warn("[Mario Hub] " .. text, detail or "")
+    warn("[Honymoon Hub] " .. text, detail or "")
     task.spawn(function()
         for _ = 1, 20 do
             local shown = pcall(StarterGui.SetCore, StarterGui, "SendNotification", {
