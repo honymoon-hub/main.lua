@@ -2,7 +2,7 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
-if game.GameId ~= 9534705677 then
+if game.GameId ~= 122446657157717 then
     game:GetService("Players").LocalPlayer:Kick("Mario Hub: this script is for Sniper Arena only")
     return
 end
