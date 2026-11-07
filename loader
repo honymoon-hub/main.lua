@@ -57,7 +57,7 @@ local function Fetch(url)
 end
 
 local currentId = game.GameId
-local name = GAMES[currentPlaceId]
+local name = GAMES[currentId]
 
 if not name then
     Notify("This game is not supported yet. Join " .. DISCORD .. " for the list.")
