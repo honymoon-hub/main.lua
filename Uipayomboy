@@ -10591,7 +10591,7 @@ function Window.New(options)
     end
     local self = setmetatable({
         Options = options,
-        Title = options.Title or "PayomboyZ Hub",
+        Title = options.Title or "Honymoon Hub",
         SubTitle = options.SubTitle or "",
         Desired = size,
         Size = size,
