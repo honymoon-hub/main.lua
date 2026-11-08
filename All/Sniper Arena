@@ -3116,7 +3116,7 @@ local function BuildInterface()
         MenuKey = Enum.KeyCode.LeftControl,
         ConfigFolder = xDTaraZ.Config.SaveFolder,
         Language = "Auto",
-        Theme = "Honymoon",
+        Theme = "Overworld",
         Intro = true,
         OnUnlocked = function()
             xDTaraZ.UI.Build()
