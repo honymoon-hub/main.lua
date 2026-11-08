@@ -3075,19 +3075,7 @@ end
 
 -- Resolve theme logo asset or fall back to default logo / vector M emblem
 function Draw.Emblem(parent, size)
-    local holder = Draw.New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(size, size), Parent = parent })
-    local badgeBg = Draw.Box("Frame", { Size = UDim2.fromOffset(size, size), Parent = holder }, "Accent", "Outline", UDim.new(1, 0), 2)
-    local picture = Draw.New("ImageLabel", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.88, 0.88), ScaleType = Enum.ScaleType.Fit, Visible = false, Parent = badgeBg })
-    Draw.Corner(picture, UDim.new(1, 0))
-    local drawn = Draw.DrawnEmblem(holder, size)
-    Theme.OnRender(holder, function()
-        local content = (Theme.Colors.Logo and Assets.Resolve(Theme.Colors.Logo)) or Assets.Resolve("logo")
-        picture.Image = content or ""
-        picture.Visible = content ~= nil
-        badgeBg.Visible = content ~= nil
-        drawn.Visible = content == nil
-    end)
-    Anim.Loop("Emblem", holder, { Rotation = 5 }, 1.8, "Sine", true)
+    local holder = Draw.New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, size), Parent = parent }) -- ปรับขนาดความกว้างเป็น 0 เพื่อซ่อนพื้นที่โลโก้
     return holder
 end
 
