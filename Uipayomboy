@@ -2629,10 +2629,6 @@ Lang.Strings = {
     Particles = { EN = "Ambient particles", TH = "ละอองตกแต่ง" },
     ParticlesDesc = { EN = "Floating sparkles behind the menu", TH = "ประกายลอยด้านหลังเมนู" },
     Device = { EN = "Device: %s", TH = "อุปกรณ์: %s" },
-    FloatButtonText = { EN = "Toggle Button", TH = "ปุ่มเปิด/ปิดหน้าต่าง" },
-    FloatDescText = { EN = "Floating button to open/close main UI", TH = "แสดงปุ่มลอยสำหรับเปิด/ปิดหน้าต่างหลัก" },
-    ToggleIconModeText = { EN = "Toggle Icon Mode", TH = "ไอคอนบนปุ่ม Toggle" },
-    ToggleTelemetryText = { EN = "Toggle Telemetry Info", TH = "ข้อมูลแสดงบนปุ่ม Toggle" },
 }
 
 function Lang.HasThai(text)
@@ -15304,31 +15300,31 @@ function Window:AddSettingsTab()
     interface:AddToggle("PayomboyZWatermark", { Text = Lang.Strings.Watermark, Description = Lang.Strings.WatermarkDesc, Default = Watermark.Frame ~= nil and Watermark.Frame.Visible, Callback = Watermark.SetVisible })
     interface:AddToggle("PayomboyZParticles", { Text = Lang.Strings.Particles, Description = Lang.Strings.ParticlesDesc, Default = Particles.Enabled, Callback = Particles.SetEnabled })
     interface:AddToggle("PayomboyZFloat", {
-        Text = (State.Language == "TH" and "ปุ่มเปิด/ปิดหน้าต่าง (Toggle Button)" or "Toggle Button"),
-        Description = (State.Language == "TH" and "แสดงปุ่มลอยสำหรับเปิด/ปิดหน้าต่างหลัก" or "Floating button to open/close main UI"),
-        Default = Float.State and Float.State.Visible or true,
-        Callback = function(val)
-            Float.SetVisible(val)
-        end,
-    })
-    interface:AddDropdown("PayomboyZFloatIcon", {
-        Text = (State.Language == "TH" and "ไอคอนบนปุ่ม Toggle" or "Toggle Icon Mode"),
-        Values = { "Logo Theme", "Avatar (ตัวละคร)" },
-        Default = (Float.State and Float.State.IconMode == "Avatar") and "Avatar (ตัวละคร)" or "Logo Theme",
-        Callback = function(val)
-            local mode = val:find("Avatar") and "Avatar" or "Logo"
-            Float.SetIconMode(mode)
-        end,
-    })
-    interface:AddDropdown("PayomboyZFloatSub", {
-        Text = (State.Language == "TH" and "ข้อมูลแสดงบนปุ่ม Toggle" or "Toggle Telemetry Info"),
-        Values = { "FPS (Real-time)", "เวลาเปิดสคริปต์ (Elapsed Time)" },
-        Default = (Float.State and Float.State.SubMode == "Time") and "เวลาเปิดสคริปต์ (Elapsed Time)" or "FPS (Real-time)",
-        Callback = function(val)
-            local mode = val:find("Time") and "Time" or "FPS"
-            Float.SetSubMode(mode)
-        end,
-    })
+    Text = { EN = "Toggle Button", TH = "ปุ่มเปิด/ปิดหน้าต่าง" },
+    Description = { EN = "Floating button to open/close main UI", TH = "แสดงปุ่มลอยสำหรับเปิด/ปิดหน้าต่างหลัก" },
+    Default = Float.State and Float.State.Visible or true,
+    Callback = function(val)
+        Float.SetVisible(val)
+    end,
+})
+interface:AddDropdown("PayomboyZFloatIcon", {
+    Text = { EN = "Toggle Icon Mode", TH = "ไอคอนบนปุ่ม Toggle" },
+    Values = { "Logo (PayomboyZ)", "Avatar (ตัวละคร)" },
+    Default = (Float.State and Float.State.IconMode == "Avatar") and "Avatar (ตัวละคร)" or "Logo (PayomboyZ)",
+    Callback = function(val)
+        local mode = val:find("Avatar") and "Avatar" or "Logo"
+        Float.SetIconMode(mode)
+    end,
+})
+interface:AddDropdown("PayomboyZFloatSub", {
+    Text = { EN = "Toggle Telemetry Info", TH = "ข้อมูลแสดงบนปุ่ม Toggle" },
+    Values = { "FPS (Real-time)", "เวลาเปิดสคริปต์ (Elapsed Time)" },
+    Default = (Float.State and Float.State.SubMode == "Time") and "เวลาเปิดสคริปต์ (Elapsed Time)" or "FPS (Real-time)",
+    Callback = function(val)
+        local mode = val:find("Time") and "Time" or "FPS"
+        Float.SetSubMode(mode)
+    end,
+})
     local about = tab:AddLeftGroupbox(Lang.Strings.About, "about")
     about:AddLabel(string.format("%s v%s - %s", self.Title, Library.Version, self.SubTitle ~= "" and self.SubTitle or tostring(game.PlaceId)))
     about:AddLabel(Lang.Format("Device", State.Touch and "Mobile" or "PC"))
