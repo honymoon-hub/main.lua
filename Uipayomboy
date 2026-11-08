@@ -10792,8 +10792,8 @@ function Window:BuildTopbar()
             Dialog.Show({
                 Title = Lang.Strings.Unload,
                 Content = {
-                    EN = "Are you sure you want to unload PayomboyZ HUB?\nAll running automations and features will stop.",
-                    TH = "คุณต้องการปิดสคริปต์ PayomboyZ HUB หรือไม่?\nระบบฟาร์มและฟังก์ชันที่เปิดอยู่ทั้งหมดจะหยุดทำงานทันที"
+                    EN = "Are you sure you want to unload Honymoon HUB?\nAll running automations and features will stop.",
+                    TH = "คุณต้องการปิดสคริปต์ Honymoon HUB หรือไม่?\nระบบฟาร์มและฟังก์ชันที่เปิดอยู่ทั้งหมดจะหยุดทำงานทันที"
                 },
                 Buttons = {
                     { Text = { EN = "Hide Only", TH = "ซ่อนเมนู" }, Style = "Default", Callback = function()
@@ -12675,7 +12675,7 @@ function Float.Build()
 
     local hubTitle = Draw.Text({
         Name = "HubTitle",
-        Text = "PAYOMBOYZ",
+        Text = "Honymoon",
         Size = UDim2.fromOffset(88, 18),
         TextXAlignment = Enum.TextXAlignment.Left,
         LayoutOrder = 1,
@@ -13663,7 +13663,7 @@ function Notify.Push(title, content, duration, kind)
     end
     local icon = Sprite.New(face, resolvedNotifySprite, 36)
     icon.Position = UDim2.fromOffset(12, 11)
-    Draw.Text({ Position = UDim2.fromOffset(58, 9), Size = UDim2.new(1, -68, 0, 18), TextTruncate = Enum.TextTruncate.AtEnd, Parent = face }, "Body", Util.TextSize("Group"), "Text", title or "PayomboyZ Hub")
+    Draw.Text({ Position = UDim2.fromOffset(58, 9), Size = UDim2.new(1, -68, 0, 18), TextTruncate = Enum.TextTruncate.AtEnd, Parent = face }, "Body", Util.TextSize("Group"), "Text", title or "Honymoon Hub")
     Draw.Text({ Text = text, TextWrapped = true, TextYAlignment = Enum.TextYAlignment.Top, Position = UDim2.fromOffset(58, 29), Size = UDim2.new(1, -68, 0, textHeight), Parent = face }, "Desc", Util.TextSize("Desc") + 1, "SubText")
     local timer = Draw.Box("Frame", { AnchorPoint = Vector2.new(0, 1), Position = UDim2.new(0, 0, 1, 0), Size = UDim2.new(1, 0, 0, 4), Parent = face }, "Accent")
     duration = duration or Config.Notify.Duration
