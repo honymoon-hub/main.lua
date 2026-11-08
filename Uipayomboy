@@ -2799,15 +2799,9 @@ end
 
 function Fonts.Style(label, kind, base)
     Fonts.Texts[label] = { Kind = kind, Base = base }
-    local function applyStyle()
-        if not label.Parent then return end
-        local text = label.Text or ""
-        local hasThai = (text ~= "" and Lang.HasThai(text)) or (State.Language == "TH")
-        label.FontFace = Fonts.Face(kind, hasThai)
-        label.TextSize = Fonts.Size(kind, base, hasThai)
-    end
-    applyStyle()
-    label:GetPropertyChangedSignal("Text"):Connect(applyStyle)
+    -- บังคับใช้ฟอนต์มาตรฐานและขนาดคงที่ ไม่ให้ปรับตามภาษา
+    label.FontFace = Fonts.Face(kind, false)
+    label.TextSize = base
 end
 
 function Fonts.ApplyAll()
