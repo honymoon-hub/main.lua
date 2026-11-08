@@ -2809,10 +2809,9 @@ function Fonts.ApplyAll()
     Layout.MeasuredCount = 0
     for label, style in pairs(Fonts.Texts) do
         if label.Parent then
-            local text = label.Text or ""
-            local hasThai = (text ~= "" and Lang.HasThai(text)) or (State.Language == "TH")
-            label.FontFace = Fonts.Face(style.Kind, hasThai)
-            label.TextSize = Fonts.Size(style.Kind, style.Base, hasThai)
+            -- ล็อกให้ใช้ฟอนต์มาตรฐานและขนาดคงที่ตลอด ไม่เปลี่ยนตามภาษา
+            label.FontFace = Fonts.Face(style.Kind, false)
+            label.TextSize = style.Base
         end
     end
 end
