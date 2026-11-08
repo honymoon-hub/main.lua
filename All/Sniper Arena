@@ -30,7 +30,7 @@ local xDTaraZ = setmetatable({}, {
 })
 
 xDTaraZ.Config = {
-    UiSource = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/Uipayomboy",
+    UiSource = "https://raw.githubusercontent.com/honymoon-hub/main.lua/main/new%20ui%20test%20logo",
     Discord = "https://discord.gg/jA2qruQZN2",
     SaveFolder = "Sniper Arena",
     LoadTimeout = 10,
