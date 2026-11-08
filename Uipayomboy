@@ -15301,8 +15301,8 @@ function Window:AddSettingsTab()
 })
 interface:AddDropdown("PayomboyZFloatIcon", {
     Text = { EN = "Toggle Icon Mode", TH = "ไอคอนบนปุ่ม Toggle" },
-    Values = { "Logo (PayomboyZ)", "Avatar (ตัวละคร)" },
-    Default = (Float.State and Float.State.IconMode == "Avatar") and "Avatar (ตัวละคร)" or "Logo (PayomboyZ)",
+    Values = { "Logo Theme", "Avatar (ตัวละคร)" },
+    Default = (Float.State and Float.State.IconMode == "Avatar") and "Avatar (ตัวละคร)" or "Logo Theme",
     Callback = function(val)
         local mode = val:find("Avatar") and "Avatar" or "Logo"
         Float.SetIconMode(mode)
