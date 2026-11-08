@@ -2629,6 +2629,10 @@ Lang.Strings = {
     Particles = { EN = "Ambient particles", TH = "ละอองตกแต่ง" },
     ParticlesDesc = { EN = "Floating sparkles behind the menu", TH = "ประกายลอยด้านหลังเมนู" },
     Device = { EN = "Device: %s", TH = "อุปกรณ์: %s" },
+    FloatButtonText = { EN = "Toggle Button", TH = "ปุ่มเปิด/ปิดหน้าต่าง" },
+    FloatDescText = { EN = "Floating button to open/close main UI", TH = "แสดงปุ่มลอยสำหรับเปิด/ปิดหน้าต่างหลัก" },
+    ToggleIconModeText = { EN = "Toggle Icon Mode", TH = "ไอคอนบนปุ่ม Toggle" },
+    ToggleTelemetryText = { EN = "Toggle Telemetry Info", TH = "ข้อมูลแสดงบนปุ่ม Toggle" },
 }
 
 function Lang.HasThai(text)
