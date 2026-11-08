@@ -31,15 +31,7 @@ local Config = {
         float_logo = "rbxassetid://87106942787227",
         logo_halloween = "rbxassetid://81695492880721",
     },
-    SeasonTheme = (function()
-        local d = os.date("*t")
-        if d and d.month == 10 and d.day >= 15 then
-            return "Halloween"
-        elseif d and d.month == 12 then
-            return "Snow"
-        end
-        return "Overworld"
-    end)(),
+    SeasonTheme = "Overworld",
     FontDir = "payomboyzhub/fonts",
     HttpTimeout = 8,
     FontTimeout = 20,
