@@ -15631,12 +15631,6 @@ Library.Sheet = function(self, spec)
     return Sheet.Show(type(self) == "table" and self ~= Library and self or spec)
 end
 Library.CloseSheet = Sheet.Close
-Library.NewWindow = Library.CreateWindow
-function Library:Window(...)
-    if select("#", ...) > 0 then
-        return Library.CreateWindow(self, ...)
-    end
-    return self.MainWindow or State.Window
-end
+Library.Window = Library.CreateWindow
 
 return Library
