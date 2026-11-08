@@ -3075,7 +3075,8 @@ end
 
 -- Resolve theme logo asset or fall back to default logo / vector M emblem
 function Draw.Emblem(parent, size)
-    local holder = Draw.New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 0), Parent = parent })
+    local holder = Draw.New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(size, size), Parent = parent })
+return holder
     local badgeBg = Draw.Box("Frame", { Size = UDim2.fromOffset(size, size), Parent = holder }, "Accent", "Outline", UDim.new(1, 0), 2)
     local picture = Draw.New("ImageLabel", { BackgroundTransparency = 1, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromScale(0.88, 0.88), ScaleType = Enum.ScaleType.Fit, Visible = false, Parent = badgeBg })
     Draw.Corner(picture, UDim.new(1, 0))
