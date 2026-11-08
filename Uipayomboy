@@ -14970,7 +14970,7 @@ function Compat.NeedCap(option, caps)
             return true
         end
         local feature = option.Info and option.Info.Text and Lang.Resolve(option.Info.Text) or option.Idx
-        Library:Notify("PayomboyZ Hub", Library:T(tostring(feature) .. " is not supported on this executor", tostring(feature) .. " ใช้กับ executor นี้ไม่ได้"), 4, "Warn")
+        Library:Notify("Honymoon Hub", Library:T(tostring(feature) .. " is not supported on this executor", tostring(feature) .. " ใช้กับ executor นี้ไม่ได้"), 4, "Warn")
         task.defer(option.SetValue, option, false)
         return false
     end)
@@ -14989,7 +14989,7 @@ function Compat.Block(option, reason)
             return true
         end
         local feature = option.Info and option.Info.Text and Lang.Resolve(option.Info.Text) or option.Idx
-        Library:Notify("PayomboyZ Hub", tostring(feature) .. ": " .. tostring(Lang.Resolve(reason) or reason), 4, "Warn")
+        Library:Notify("Honymoon Hub", tostring(feature) .. ": " .. tostring(Lang.Resolve(reason) or reason), 4, "Warn")
         task.defer(option.SetValue, option, false)
         return false
     end)
@@ -15316,8 +15316,8 @@ function Window:AddSettingsTab()
     })
     interface:AddDropdown("PayomboyZFloatIcon", {
         Text = (State.Language == "TH" and "ไอคอนบนปุ่ม Toggle" or "Toggle Icon Mode"),
-        Values = { "Logo (PayomboyZ)", "Avatar (ตัวละคร)" },
-        Default = (Float.State and Float.State.IconMode == "Avatar") and "Avatar (ตัวละคร)" or "Logo (PayomboyZ)",
+        Values = { "Logo Theme", "Avatar (ตัวละคร)" },
+        Default = (Float.State and Float.State.IconMode == "Avatar") and "Avatar (ตัวละคร)" or "Logo Theme",
         Callback = function(val)
             local mode = val:find("Avatar") and "Avatar" or "Logo"
             Float.SetIconMode(mode)
@@ -15614,7 +15614,7 @@ Library.h = Tailwind.CreateElement
 Library.Component = function(self, name, renderFn)
     local fn = type(renderFn) == "function" and renderFn or (type(name) == "function" and name or (type(self) == "function" and self or nil))
     if not fn then
-        error("[PayomboyZ Hub] Component requires a render function", 2)
+        error("[Honymoon Hub] Component requires a render function", 2)
     end
     return Tailwind.Component(fn)
 end
