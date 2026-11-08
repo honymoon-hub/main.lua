@@ -3092,8 +3092,7 @@ function Draw.Emblem(parent, size)
 end
 
 function Draw.DrawnEmblem(parent, size)
-    local holder = Draw.New("Frame", { Name = "DrawnEmblem", BackgroundTransparency = 1, Size = UDim2.fromOffset(size, size), Parent = parent })
-    holder.Visible = false
+    local holder = Draw.New("Frame", { Name = "DrawnEmblem", BackgroundTransparency = 1, Size = UDim2.fromOffset(0, size), Parent = parent })
     local function renderEmblem()
         holder:ClearAllChildren()
         local theme = State.ThemeName or "Overworld"
