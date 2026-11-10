@@ -30,7 +30,7 @@ local xDTaraZ = setmetatable({}, {
 })
 
 xDTaraZ.Config = {
-    UiSource = "https://raw.githubusercontent.com/honymoon-hub/main.lua/main/new%20ui%20test%20logo",
+    UiSource = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/honymoonhubUi",
     Discord = "https://discord.gg/jA2qruQZN2",
     SaveFolder = "Sniper Arena",
     LoadTimeout = 10,
@@ -218,7 +218,7 @@ function Util.Alert(text, detail)
     task.spawn(function()
         for _ = 1, xDTaraZ.Config.AlertTries do
             local shown = pcall(StarterGui.SetCore, StarterGui, "SendNotification", {
-                Title = "Mario Hub",
+                Title = "Honymoon Hub",
                 Text = text,
                 Duration = 10,
             })
@@ -3030,7 +3030,7 @@ function xDTaraZ.UI.ShowHalted()
                 Util.Try("halt " .. key, toggle.SetValue, toggle, false)
             end
         end
-        Library:Notify("Mario Hub", name .. " stopped: " .. reason, 6, "Error")
+        Library:Notify("Honymoon Hub", name .. " stopped: " .. reason, 6, "Error")
     end
 end
 
