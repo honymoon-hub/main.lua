@@ -1,0 +1,2076 @@
+--[[
+    ═══════════════════════════════════════════════════════════════════
+    HONYMOON HUB - MAHANAKHON RACING (FULL AUTO EDITION)
+    Author: xDSpyZ / Honymoon Hub
+    Discord: discord.gg/jA2qruQZN2
+    Engine: Honymoon Hub Official Classic UI + NetSeal Protected Pipeline
+    GameId: 10771935715 (PlaceId: 104549080643413)
+    ═══════════════════════════════════════════════════════════════════
+]]
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+if game.GameId ~= 10771935715 then
+    game:GetService("Players").LocalPlayer:Kick("Mario Hub: this script is for MAHANAKHON RACING only")
+    return
+end
+do
+    local ok, env = pcall(getgenv)
+    if ok and type(env) == "table" and type(env.MahanakhonRacingUnload) == "function" then
+        pcall(env.MahanakhonRacingUnload)
+    end
+end
+-- ═══════════════════════════════════════
+-- BANNER & INITIALIZATION
+-- ═══════════════════════════════════════
+local MarioBanner = {
+    Print = print,
+    Started = os.clock(),
+    Last = os.clock(),
+    Done = 0,
+    Total = 4,
+}
+do
+    local ok, renv = pcall(getrenv)
+    if ok and type(renv) == "table" and type(renv.print) == "function" then
+        MarioBanner.Print = renv.print
+    end
+end
+function MarioBanner.Show()
+    local ok, executor = pcall(identifyexecutor)
+    if not ok or type(executor) ~= "string" then executor = "Unknown" end
+    local rule = string.rep("=", 54)
+    MarioBanner.Print(table.concat({
+        "",
+        [[
+                                                                        -+#*-@*-   #%--+%#-
+                                        --++**%%%%%%%%%%%%%%***+--    +#%*+ -+*%%% #*-++*@-
+                                  -+*%%%%%%%****+++++++++++***%%%%%%*+*#%*+-+*%%#*-##-+*@%
+                             -+*%%%%**++---------+++++++++++----++++*%%%%#@*+@*-  #%- -+*#%-
+                          +*%%%*+-------++++++++++++++++++++++++++++--++*%#@#@- -@%- ---++%%%*
+                      -+%%%+--   --+++++++++++++++++++++++++++++++++++++--++%#@##%- -++-+***-
+                    +%#%*-    ---++++++++****%%%%%%%%%%%%%%%*****+++++++++++--*@+ --++--++*%%%
+                 -*##*+-  ------++++***%%%%***+++----------+++***%%***+++++++++*#%*--++-++++%%%
+               -*#%*+--------+++**%%%%*++--                     ---+*****++++++++*%#*+--**%*
+             -*#%++---+++++++**%%%*+--                                -++*%**++++-++%#%*
+            *#%++++++++++++*%%%*+-                            ---- --    --+*%*+++++++*##*
+          +##++++++++++++*%%*+-                -          ----    ----       -*%%*++++++*%#
+         %@*-+++++++++**%%*-   -+*************-  -     ------ -+**%%%%%*****+- -+%%++++++++%#
+       -##+-+++++++++*%%*-    *%*++-----+++++%#*--     ----- +%*+----+++++**%#*  -+%*+++++++
+      -@%-+++++++++**%*-     %#+     -----+++*%@+---     ----#%+-  ----++++++*@%-- -*%+++++++
+     +@*---+++++++*%%+      +#*- -------+++++*%@*--       - -#*+----+++++++++*%@+--  +%*++++++
+    +@*-- -++++++*%%-     - %%+--------++++++*%@+--         -#*+--++++++++++++*#%-- - +%*++++++
+   -@*-- --+++++*%*-     - +#*------+++++++++*%@*------------#*++-++++++++++++*%@+-- - -%*++++++
+   ##-- --+++++*%*-      - %%+----+++++++++++*%@+-          -#*++-++++++++++++**#%-- ----%*++++++
+  *@-+--++++++*%%-      - +#*--+-++++++++++++*%@%**+++++++++*#*++-+++++++++++++*%#+--  --+%+++++++
+ -@*++-++++++*%%-       - %%+--++++++++++++++****************+----+++++++++++++**#*--   --*%++++++
+ %#-+--++++++*#+       - +#*--+++++++++++++++++------------------+++++++++++++++*%#+--   --%++++++
+-@*++-++++++*%%-       - %%+--++++++++++++++++++++++++++++++++++++++++++++++++++**@*-- - --**++++++
+*@+++-++++++*%+       - -#*--++++++++++++++++++++++++++++++++++++++++++++++++++++*%#---   -+%+++++++
+##-++-++++++*%-       - %#+--++++++++++++++++++++++++++++++++++++++++++++++++++++**@*--   --%+++++++
+@%-+++++++++*%-        -#*--++++++++++++++++++++++++++++++++++++++++++++++++++++++*##---  --**+++++++
+@%++++++++++*%-      - *#+--+++++++++++++++*%******************%%+++++++++++++++++**@+-- ---**+++++++
+@%++++++++++*%-       -#%- -++++++++++++++*%%%%%%%%***%%%%%%%%%%**++++++++++++++++**#%------*+-+++++++
+@%+*++++++++*%-       +#+--+++++++++++++++*%%%@################***+-+++++++++++++++*%#+-- --%+-+++++++
+%#+*+++++++++%+     - %%+--++++++++++++++**%*##+*++++++++++++*@***+-+++++++++++++++**#%----+*--+++++++
++@+++++++++++**      -#*--+++++++++++++++***%@*++-------------%%++++++++++++++++++++*%#++--*+--+++++++
+-@%+*+++++++++%-     *#+--+++++++++++++++***%@++-           - *%++++++++++++++++++++**#*+-+%--+++++++
+ *@+*+++++++++*%-    %%++++++++++++++++++***##++-           - +#*+++++++++++++++++****#%++%+--++++++
+ -@%+*+++++++++**    *#**%*****+++++++++****@%++---------------#*+++++++++++*****%%%%%#%+%+--+++++++
+  +@*+*+++++++++%*-   *###%%%%%%%**********%@*--               *%+++++****%%%%%%%%%###%+%*  -+++++++
+   %@+**+++++++++**-    +*%%##%%%%%%%%%###%#@***+**********++++*@%*%%%%%%%%%%%%#%%%*+-+%*- -+++++++
+    ##+**++++++***#%***+  -+*%####%%%*******+++****++++++***++*+******%%%%##@#%*+-  +*%%++**++++++
+    -##+**+****+++++***#%***+++++++--**%%%%%++%%%%%%%**%%%%%%*++%%%%%%%****+-+*****##*----+*%%%***
+      ##*%#*+------*%*+-----+**%**####--- -#@@%-   -#@@* ---+@#@*------++*%%%+----+++**------+%#%##
+    -+*@#%++------+%+------*@+-   -@@#     *@@+     #@@+    -@@@-    ---   -*@*-+++-++**----++**%@%*
+  -*%%*++*+++-----+*++-----+@*     %%%-    +@@+    -#@@+    -@@#     *#%    -@#-++++++*+---++***%*+**
+  %@+--++**+++-----**+------#@-            -@@* -   %@@-    +@@%          -+@@*-+++++**----++**%**+
+  -##%++++**++-----+*+------*@*     --+-   -#@#   - -+- --  %@@* -  -%%-   -#@+-+++++*+---++*+%**+++
+    +##*++***++----+**+------##- -- *@@-    *@@#-         -%@@@-    -*%- -  +@*-++++**----+*+*%**+
+      +@#*+*%+++----+%+------*@+    -@@%+++*#@%#@#%*****%#@@%#@+---        +@@+-++++%+---++**%***##
+      +@*-++**++----+**+------#@%%%%#@%#####%*--+*%%####%%*+-+%#######%%%##@#+-++++**----+*+%**++@
+     +@*--++**+++**%%%%+-------*%%%**++++++++************+***+++++****%%%**+----+++%#%%**+++%*++
+     @%---+++***#@#@@@@+-+++++***%%%%##############################%%%%%****+++++++%@@@#@#*%**+
+    *@------++**%%%@%%@#%%%#####%%%%****+++++++++---------+++++++******%%%%####%###@%%@%%%**++
+    %@--++*%%###%%*+  -*#@@#%*****+++++++++++++++++++++++++++++++++++++++****%##@%+-  +*%%####%*
+    -%####%%*+--         -*%#@#%**++++++++++++++++++++++++++++++++++++***%%###%+-         --+*%####%-
+      -+--                  -+*%###%%******++++++++++++++++++++*****%%####%*+                   ----
+                                --+*%%####%%%%*************%%%%%####%%*+--
+                                      --+**%%################%%**+--
+]],
+    Title = [[
+ _   _   ___   _   _ __   __ __  __   ___    ___   _   _    _   _  _   _  ____  
+| | | | / _ \ | \ | |\ \ / /|  \/  | / _ \  / _ \ | \ | |  | | | || | | || __ ) 
+| |_| || | | ||  \| | \ V / | |\/| || | | || | | ||  \| |  | |_| || | | ||  _ \ 
+|  _  || |_| || |\  |  | |  | |  | || |_| || |_| || |\  |  |  _  || |_| || |_) |
+|_| |_| \___/ |_| \_|  |_|  |_|  |_| \___/  \___/ |_| \_|  |_| |_| \___/ |____/
+]],
+        rule,
+        "   MAHANAKHON RACING  //  FULL AUTO EDITION",
+        "   by xDSpyZ  //  discord.gg/jA2qruQZN2",
+        "   executor: " .. executor .. "   //   player: " .. game:GetService("Players").LocalPlayer.Name,
+        rule,
+    }, "\n"))
+end
+---@param label string what just finished loading
+function MarioBanner.Step(label)
+    local now = os.clock()
+    MarioBanner.Done = math.min(MarioBanner.Done + 1, MarioBanner.Total)
+    local filled = math.floor(MarioBanner.Done / MarioBanner.Total * 20 + 0.5)
+    MarioBanner.Print(string.format("[Honymoon Hub] [%s] %3d%%  %-24s +%dms",
+        string.rep("#", filled) .. string.rep(".", 20 - filled),
+        math.floor(MarioBanner.Done / MarioBanner.Total * 100), label, math.floor((now - MarioBanner.Last) * 1000)))
+    MarioBanner.Last = now
+end
+function MarioBanner.Ready()
+    local rule = string.rep("=", 54)
+    MarioBanner.Print(table.concat({
+        rule,
+        string.format("   >> READY in %dms", math.floor((os.clock() - MarioBanner.Started) * 1000)),
+        rule,
+    }, "\n"))
+end
+pcall(MarioBanner.Show)
+pcall(MarioBanner.Step, "Core")
+-- ═══════════════════════════════════════
+-- SERVICES & NETSEAL PROTOCOL
+-- ═══════════════════════════════════════
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
+local VirtualUser = game:GetService("VirtualUser")
+local HttpService = game:GetService("HttpService")
+local CollectionService = game:GetService("CollectionService")
+local PathfindingService = game:GetService("PathfindingService")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+LocalPlayer.CharacterAdded:Connect(function(char)
+    Character = char
+end)
+-- Require NetSeal & Game Shared Modules
+local NetSeal = require(ReplicatedStorage:WaitForChild("NetSeal", 10))
+local GameShared = require(ReplicatedStorage:WaitForChild("GameShared", 10))
+local JobShared = require(ReplicatedStorage:WaitForChild("JobShared", 10))
+local DeliveryShared = require(ReplicatedStorage:WaitForChild("DeliveryShared", 10))
+local QuestShared = require(ReplicatedStorage:WaitForChild("QuestShared", 10))
+local CareShared = require(ReplicatedStorage:WaitForChild("CareShared", 10))
+local MapConfig = require(ReplicatedStorage:WaitForChild("MapConfig", 10))
+local JobPlaces = ReplicatedStorage:WaitForChild("JobPlaces", 10)
+-- Remotes folder
+local RemotesFolder = ReplicatedStorage:WaitForChild("GameRemotes", 10)
+local WorkRemote = RemotesFolder:WaitForChild("Work", 10)
+local JobRemote = RemotesFolder:WaitForChild("Job", 10)
+local DeliveryRemote = RemotesFolder:WaitForChild("Delivery", 10)
+local CareRemote = RemotesFolder:WaitForChild("Care", 10)
+local QuestRemote = RemotesFolder:WaitForChild("Quest", 10)
+local GroupRewardRemote = RemotesFolder:WaitForChild("GroupReward", 10)
+local GarageRemote = RemotesFolder:WaitForChild("Garage", 10)
+local StoreRemote = RemotesFolder:WaitForChild("Store", 10)
+local FarmCheckRemote = RemotesFolder:WaitForChild("FarmCheck", 10)
+local FarmCheckAnswerRemote = RemotesFolder:WaitForChild("FarmCheckAnswer", 10)
+local EcuRemote = RemotesFolder:WaitForChild("Ecu", 10)
+local TuneShopRemote = RemotesFolder:WaitForChild("TuneShop", 10)
+local TuneUpgradeRemote = RemotesFolder:WaitForChild("TuneUpgrade", 10)
+local EcuShared = require(ReplicatedStorage:WaitForChild("EcuShared", 10))
+-- ═══════════════════════════════════════
+-- CONFIG & STATE
+-- ═══════════════════════════════════════
+local xDTaraZ = {}
+xDTaraZ.Config = {
+    Discord = "https://discord.gg/jA2qruQZN2",
+    UpdateLog = {
+        { "2026-11-14", "MAHANAKHON RACING Full Auto Edition!\nAuto Mechanic, Auto Builder, Auto Delivery, Auto Quests, Auto Repair, Smart FarmCheck Solver & Teleports" },
+    },
+    UiSource = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/honymoonhubUi",
+    SaveFolder = "Mahanakhon Racing",
+}
+xDTaraZ.State = {
+    Alive = true,
+    Status = "Idle",
+    -- 1. KAITUN (ALL-IN-ONE)
+    Kaitun = false,
+    FarmJobType = "Mechanic", -- "Mechanic", "Builder", "Delivery"
+    -- 2. MECHANIC FARM
+    AutoMechanic = false,
+    MechanicMoveMode = "SimWalk", -- "SimWalk" or "InstantTP"
+    MechanicWalkSpeed = 26,
+    MechanicDelay = 3.2,          -- Minimum task minigame duration
+    DrawWalkPath = true,          -- 3D neon line navigation path
+    RadarAvoidance = true,        -- Radar obstacle scanner & auto-avoid
+    -- 3. BUILDER FARM
+    AutoBuilder = false,
+    BuilderMoveMode = "SimWalk",  -- "SimWalk", "SimRide", "InstantTP"
+    BuilderWalkSpeed = 26,
+    BuilderRideSpeed = 65,
+    -- 4. DELIVERY FARM (RIDER)
+    AutoDelivery = false,
+    DeliveryMode = "food",        -- "food", "parcel", "ride"
+    DeliveryMoveMode = "SimRide", -- "SimRide", "SimWalk", "InstantTP"
+    DeliveryRideSpeed = 70,
+    DeliveryWalkSpeed = 28,
+    AutoAcceptOffer = true,
+    -- 5. REWARDS & UPGRADES
+    AutoQuests = true,
+    AutoGroupReward = true,
+    AutoRepair = true,
+    AutoFarmCheck = true,
+    ForceMaxEcu = true,       -- Force 2.00x Maximum ECU Gain
+    -- 6. MISC & MOVEMENT
+    WalkSpeedOn = false,
+    WalkSpeed = 32,
+    InfJump = false,
+    Noclip = false,
+    AntiAfk = true,
+    AutoReconnect = true,
+    -- 7. FAKE NAME / STREAMER MODE
+    FakeNameEnabled = true,
+    FakeName = "Honymoon Hub",
+}
+local State = xDTaraZ.State
+local Config = xDTaraZ.Config
+pcall(MarioBanner.Step, "NetSeal & Remotes")
+-- ═══════════════════════════════════════
+-- HELPER FUNCTIONS & TELEPORTS
+-- ═══════════════════════════════════════
+local function SafeRoot()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    return char:FindFirstChild("HumanoidRootPart")
+end
+local function SafeTeleport(targetCFrame)
+    local hrp = SafeRoot()
+    if not hrp then return false end
+    hrp.CFrame = typeof(targetCFrame) == "CFrame" and targetCFrame or CFrame.new(targetCFrame)
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    return true
+end
+
+--- ═══════════════════════════════════════
+--- RADAR & 3D PATH VISUALIZER SYSTEM
+--- ═══════════════════════════════════════
+
+local function CleanPathVisuals()
+    local old = Workspace:FindFirstChild("MarioSimWalkVisuals")
+    if old then pcall(old.Destroy, old) end
+end
+
+local function RenderPathVisuals(waypoints, color)
+    CleanPathVisuals()
+    if not State.DrawWalkPath then return nil end
+
+    local folder = Instance.new("Folder")
+    folder.Name = "MarioSimWalkVisuals"
+    folder.Parent = Workspace
+
+    for i = 1, #waypoints - 1 do
+        local p1 = waypoints[i].Position + Vector3.new(0, 0.35, 0)
+        local p2 = waypoints[i+1].Position + Vector3.new(0, 0.35, 0)
+        local dist = (p2 - p1).Magnitude
+        if dist > 0.1 then
+            local part = Instance.new("Part")
+            part.Anchored = true
+            part.CanCollide = false
+            part.CanTouch = false
+            part.CanQuery = false
+            part.Material = Enum.Material.Neon
+            part.Color = color or Color3.fromRGB(0, 255, 180)
+            part.Transparency = 0.3
+            part.Size = Vector3.new(0.4, 0.08, dist)
+            part.CFrame = CFrame.new((p1 + p2) / 2, p2)
+            part.Parent = folder
+        end
+    end
+
+    -- Destination ring marker
+    local lastP = waypoints[#waypoints].Position
+    local pin = Instance.new("Part")
+    pin.Shape = Enum.PartType.Cylinder
+    pin.Anchored = true
+    pin.CanCollide = false
+    pin.Material = Enum.Material.Neon
+    pin.Color = Color3.fromRGB(255, 220, 0)
+    pin.Size = Vector3.new(0.15, 3.5, 3.5)
+    pin.CFrame = CFrame.new(lastP + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, 0, math.rad(90))
+    pin.Parent = folder
+
+    return folder
+end
+
+local function ScanRadarObstacles(hrp, moveDir)
+    if not State.RadarAvoidance then
+        return false, false, Vector3.zero
+    end
+
+    local char = LocalPlayer.Character
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = { char }
+    rayParams.IgnoreWater = true
+
+    local origin = hrp.Position + Vector3.new(0, -0.5, 0)
+    local forward = moveDir.Unit
+    local centerHit = Workspace:Raycast(origin, forward * 5.0, rayParams)
+    
+    local leftDir = (CFrame.Angles(0, math.rad(25), 0) * Vector3.new(forward.X, 0, forward.Z)).Unit
+    local leftHit = Workspace:Raycast(origin, leftDir * 4.2, rayParams)
+
+    local rightDir = (CFrame.Angles(0, math.rad(-25), 0) * Vector3.new(forward.X, 0, forward.Z)).Unit
+    local rightHit = Workspace:Raycast(origin, rightDir * 4.2, rayParams)
+
+    if not centerHit and not leftHit and not rightHit then
+        return false, false, Vector3.zero
+    end
+
+    local shouldJump = false
+    if centerHit then
+        local highHit = Workspace:Raycast(hrp.Position + Vector3.new(0, 1.8, 0), forward * 5.0, rayParams)
+        if not highHit then
+            shouldJump = true
+            return true, true, Vector3.zero
+        end
+    end
+
+    local rightVector = Vector3.new(-forward.Z, 0, forward.X).Unit
+    local steer = Vector3.zero
+    if leftHit and not rightHit then
+        steer = rightVector * 2.5
+    elseif rightHit and not leftHit then
+        steer = -rightVector * 2.5
+    elseif centerHit then
+        steer = rightVector * 2.5
+    end
+
+    return true, shouldJump, steer
+end
+
+-- ═══════════════════════════════════════
+-- ANTI-CHEAT SAFE NAVIGATION & MOVEMENT
+-- (Protected against Server AntiCheat Error 267: Tween / Noclip)
+-- ═══════════════════════════════════════
+
+-- Accurate multi-layer path computation using official RoadGraph & PathfindingService
+local function ComputeNavigationPath(startPos, endPos)
+    local totalDist = (endPos - startPos).Magnitude
+
+    -- 1. Short-range local navigation (inside Construction site, Garage bays, or rooms)
+    -- PathfindingService computes paths around all scaffolding, walls, and obstacles safely
+    if totalDist <= 55 then
+        local path = PathfindingService:CreatePath({
+            AgentRadius = 2.0,
+            AgentHeight = 5.0,
+            AgentCanJump = true,
+            WaypointSpacing = 3.5
+        })
+        local ok = pcall(function() path:ComputeAsync(startPos, endPos) end)
+        if ok and path.Status == Enum.PathStatus.Success then
+            return path:GetWaypoints()
+        end
+    end
+
+    -- 2. Long-range city navigation (Delivery, traveling across Bangkok map)
+    -- Uses the official ReplicatedStorage.RoadGraph to route STRICTLY on paved streets and through real gates!
+    -- This guarantees zero building/wall collisions so Server AntiCheat never detects noclip/tween!
+    local rsRoadGraph = ReplicatedStorage:FindFirstChild("RoadGraph")
+    if rsRoadGraph then
+        local ok, RoadGraph = pcall(require, rsRoadGraph)
+        if ok and RoadGraph and RoadGraph.route then
+            local wps2d, totalLen = RoadGraph.route(startPos, endPos)
+            if wps2d and #wps2d > 0 then
+                local waypoints = {}
+                local rayParams = RaycastParams.new()
+                rayParams.FilterType = Enum.RaycastFilterType.Include
+                rayParams.FilterDescendantsInstances = { Workspace.Map }
+
+                -- Helper to find real ground elevation for a 2D road node
+                local function getRoadGround(pos2d, refY)
+                    local baseRef = refY or 2.0
+                    local testPos = Vector3.new(pos2d.X, math.clamp(baseRef + 6, 8, 25), pos2d.Y)
+                    local hit = Workspace:Raycast(testPos, Vector3.new(0, -35, 0), rayParams)
+                    local y = hit and hit.Position.Y or baseRef
+                    return Vector3.new(pos2d.X, y, pos2d.Y)
+                end
+
+                -- Add start position
+                table.insert(waypoints, { Position = startPos, Action = Enum.PathWaypointAction.Walk })
+
+                -- Add intermediate road nodes with raycasted road elevation
+                local lastY = startPos.Y
+                for _, node2d in ipairs(wps2d) do
+                    local node3d = getRoadGround(node2d, lastY)
+                    lastY = node3d.Y
+                    table.insert(waypoints, { Position = node3d, Action = Enum.PathWaypointAction.Walk })
+                end
+
+                -- Add target position
+                table.insert(waypoints, { Position = endPos, Action = Enum.PathWaypointAction.Walk })
+                return waypoints
+            end
+        end
+    end
+
+    -- 3. Fallback: PathfindingService with broader agent spacing
+    local path = PathfindingService:CreatePath({
+        AgentRadius = 2.5,
+        AgentHeight = 5.0,
+        AgentCanJump = true,
+        WaypointSpacing = 5.0
+    })
+    local ok = pcall(function() path:ComputeAsync(startPos, endPos) end)
+    if ok and path.Status == Enum.PathStatus.Success then
+        return path:GetWaypoints()
+    end
+
+    return {
+        { Position = startPos, Action = Enum.PathWaypointAction.Walk },
+        { Position = endPos, Action = Enum.PathWaypointAction.Walk }
+    }
+end
+
+--- Realistic humanoid walking simulation (100% Server Anti-Cheat Safe, No Noclip, No Tween)
+local function SimWalk(targetPos, speed, maxTimeout)
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return false end
+
+    if hum.Sit then
+        hum.Sit = false
+        task.wait(0.2)
+    end
+
+    local walkSpeed = speed or State.MechanicWalkSpeed or 26
+    local prevSpeed = hum.WalkSpeed
+    hum.WalkSpeed = walkSpeed
+
+    local targetV3 = typeof(targetPos) == "CFrame" and targetPos.Position or targetPos
+    local flatDist = (Vector3.new(targetV3.X, hrp.Position.Y, targetV3.Z) - hrp.Position).Magnitude
+
+    if flatDist <= 3.5 then
+        CleanPathVisuals()
+        return true
+    end
+
+    -- Compute safe path around obstacles & scaffolding
+    local waypoints = ComputeNavigationPath(hrp.Position, targetV3)
+    RenderPathVisuals(waypoints)
+
+    local startTime = os.clock()
+    local timeout = maxTimeout or ((flatDist / walkSpeed) + 8.0)
+
+    for i, wp in ipairs(waypoints) do
+        if not State.Alive or os.clock() - startTime > timeout then break end
+        local wpPos = wp.Position
+        if wp.Action == Enum.PathWaypointAction.Jump then
+            hum.Jump = true
+        end
+
+        local wpStart = os.clock()
+        while (Vector3.new(wpPos.X, hrp.Position.Y, wpPos.Z) - hrp.Position).Magnitude > 3.0 do
+            if not State.Alive or os.clock() - wpStart > 3.5 then break end
+
+            local toWp = (wpPos - hrp.Position)
+            local hasObs, jump, steer = ScanRadarObstacles(hrp, toWp)
+            if jump then
+                hum.Jump = true
+            end
+
+            hum:MoveTo(wpPos + steer)
+            task.wait(0.05)
+        end
+    end
+
+    CleanPathVisuals()
+
+    if not State.WalkSpeedOn then
+        hum.WalkSpeed = prevSpeed
+    end
+
+    return (Vector3.new(targetV3.X, hrp.Position.Y, targetV3.Z) - hrp.Position).Magnitude <= 5.0
+end
+
+-- Ensure player is mounted on a MOTORCYCLE for SimRide
+local function EnsureMotorcycle()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return nil end
+
+    local function isMotorcycle(model)
+        if not model then return false end
+        local n = model.Name:upper()
+        local tag = tostring(model:GetAttribute("VehicleTag") or ""):upper()
+        return n:find("PCX") or n:find("WAVE") or n:find("VESPA") or n:find("XMAX") or n:find("LEAD") or n:find("GIORNO") or n:find("SPORT") or n:find("DREAM") or tag:find("PCX") or tag:find("BIKE") or tag:find("WAVE")
+    end
+
+    -- 1. Check if already sitting on a motorcycle
+    if hum.Sit and hum.SeatPart then
+        local currentVeh = hum.SeatPart:FindFirstAncestorOfClass("Model")
+        if isMotorcycle(currentVeh) then
+            return currentVeh
+        end
+    end
+
+    -- 2. Check if player has a spawned motorcycle in SpawnedVehicles
+    local sv = Workspace:FindFirstChild("SpawnedVehicles")
+    local myBike = nil
+    if sv then
+        for _, v in ipairs(sv:GetChildren()) do
+            if v:GetAttribute("OwnerUserId") == LocalPlayer.UserId and isMotorcycle(v) then
+                myBike = v
+                break
+            end
+        end
+    end
+
+    -- 3. If no motorcycle is spawned, spawn PCX160
+    if not myBike then
+        pcall(NetSeal.invoke, GarageRemote, "Spawn", "PCX160")
+        task.wait(1.2)
+        if sv then
+            for _, v in ipairs(sv:GetChildren()) do
+                if v:GetAttribute("OwnerUserId") == LocalPlayer.UserId and isMotorcycle(v) then
+                    myBike = v
+                    break
+                end
+            end
+        end
+    end
+
+    -- 4. Mount the motorcycle
+    if myBike and hum then
+        local seat = myBike:FindFirstChildWhichIsA("VehicleSeat", true) or myBike:FindFirstChildWhichIsA("Seat", true)
+        if seat then
+            hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
+            task.wait(0.15)
+            seat:Sit(hum)
+            task.wait(0.4)
+            -- Start bike engine and raise stand
+            pcall(function()
+                local remoteName = myBike:GetAttribute("VehicleTag") and (myBike:GetAttribute("VehicleTag") .. "Remote") or "PCX160Remote"
+                local remote = ReplicatedStorage:FindFirstChild(remoteName) or ReplicatedStorage:FindFirstChild("PCX160Remote")
+                if remote then
+                    NetSeal.fire(remote, "Stand", false)
+                    NetSeal.fire(remote, "Engine", true)
+                end
+            end)
+        end
+    end
+
+    return myBike
+end
+
+-- SimRide: Smooth MOTORCYCLE driving simulation via natural physics velocity (Zero Tween, Zero Noclip, Anti-Cheat Safe)
+local function SimRide(targetPos, speed, maxTimeout)
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return false end
+
+    local targetV3 = typeof(targetPos) == "CFrame" and targetPos.Position or targetPos
+
+    -- MUST DRIVE MOTORCYCLE FOR SIMRIDE:
+    local bike = EnsureMotorcycle()
+    if not bike or not hum.Sit then
+        return SimWalk(targetV3, speed or State.DeliveryWalkSpeed or 28, maxTimeout)
+    end
+
+    local chassis = bike.PrimaryPart or bike:FindFirstChild("Chassis") or bike:FindFirstChild("RootPart") or hum.SeatPart
+    if not chassis then
+        return SimWalk(targetV3, speed or State.DeliveryWalkSpeed or 28, maxTimeout)
+    end
+
+    local seat = hum.SeatPart
+    local rideSpeed = speed or State.DeliveryRideSpeed or 65
+    local flatDist = (Vector3.new(targetV3.X, chassis.Position.Y, targetV3.Z) - chassis.Position).Magnitude
+
+    if flatDist <= 10.0 then
+        chassis.AssemblyLinearVelocity = Vector3.zero
+        chassis.AssemblyAngularVelocity = Vector3.zero
+        if seat and seat:IsA("VehicleSeat") then
+            seat.ThrottleFloat = 0
+            seat.SteerFloat = 0
+        end
+        CleanPathVisuals()
+        return true
+    end
+
+    -- Compute navigation waypoints along official city roads
+    local waypoints = ComputeNavigationPath(chassis.Position, targetV3)
+    RenderPathVisuals(waypoints)
+
+    local startTime = os.clock()
+    local timeout = maxTimeout or ((flatDist / rideSpeed) + 18.0)
+
+    for i, wp in ipairs(waypoints) do
+        if not State.Alive or os.clock() - startTime > timeout then break end
+        if not hum.Sit then break end
+
+        local wpPos = wp.Position
+        local wpStart = os.clock()
+
+        while (Vector3.new(wpPos.X, chassis.Position.Y, wpPos.Z) - chassis.Position).Magnitude > 9.0 do
+            if not State.Alive or os.clock() - wpStart > 6.0 then break end
+            if not hum.Sit then break end
+
+            local currentPos = chassis.Position
+            local toWp = (wpPos - currentPos)
+            local flatDir = Vector3.new(toWp.X, 0, toWp.Z)
+            if flatDir.Magnitude < 0.2 then break end
+            local moveUnit = flatDir.Unit
+
+            -- Radar Obstacle Avoidance for motorcycle
+            local steerOffset = Vector3.zero
+            if State.RadarAvoidance then
+                local hasObs, _, steer = ScanRadarObstacles(chassis, moveUnit * 10.0)
+                if hasObs then
+                    steerOffset = steer
+                end
+            end
+
+            local finalDir = (moveUnit + steerOffset * 0.4).Unit
+
+            -- Steer & Rotate towards waypoint (ROTATION ONLY - preserves position so server anti-cheat doesn't flag tween!)
+            chassis.CFrame = CFrame.lookAt(currentPos, currentPos + Vector3.new(finalDir.X, 0, finalDir.Z))
+
+            -- Apply natural linear physics velocity (Server recognizes legitimate client network ownership velocity!)
+            local targetVel = Vector3.new(finalDir.X * rideSpeed, chassis.AssemblyLinearVelocity.Y, finalDir.Z * rideSpeed)
+            chassis.AssemblyLinearVelocity = targetVel
+            chassis.AssemblyAngularVelocity = Vector3.zero
+
+            if seat and seat:IsA("VehicleSeat") then
+                seat.ThrottleFloat = 1.0
+            end
+
+            task.wait(0.04)
+        end
+    end
+
+    -- Stop motorcycle at destination
+    chassis.AssemblyLinearVelocity = Vector3.zero
+    chassis.AssemblyAngularVelocity = Vector3.zero
+    if seat and seat:IsA("VehicleSeat") then
+        seat.ThrottleFloat = 0
+        seat.SteerFloat = 0
+    end
+    CleanPathVisuals()
+
+    local finalFlatDist = (Vector3.new(targetV3.X, chassis.Position.Y, targetV3.Z) - chassis.Position).Magnitude
+    return finalFlatDist <= 18.0
+end
+
+local function GetSeatedVeh()
+    local char = LocalPlayer.Character
+    if not char then return nil, "No character found" end
+    local humanoid = char:FindFirstChildWhichIsA("Humanoid")
+    if humanoid and humanoid.SeatPart then
+        local veh = humanoid.SeatPart:FindFirstAncestorOfClass("Model")
+        if veh then return veh end
+    end
+    local sv = Workspace:FindFirstChild("SpawnedVehicles")
+    if sv then
+        for _, v in ipairs(sv:GetChildren()) do
+            if v:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+                return v
+            end
+        end
+    end
+    return nil, "Please sit in your vehicle first!"
+end
+
+local function EnsureBay(veh)
+    if veh and veh.PrimaryPart then
+        veh.PrimaryPart.AssemblyLinearVelocity = Vector3.zero
+        veh.PrimaryPart.AssemblyAngularVelocity = Vector3.zero
+    end
+end
+
+-- ═══════════════════════════════════════
+-- ECU 2.00X MAX POWER ENFORCEMENT
+-- ═══════════════════════════════════════
+pcall(function()
+    if hookfunction and EcuShared and EcuShared.gain then
+        hookfunction(EcuShared.gain, function(veh)
+            if State.ForceMaxEcu then
+                return 2.0
+            end
+            local Attribute = veh and veh:GetAttribute("EcuGain")
+            return typeof(Attribute) ~= "number" and 1 or math.clamp(Attribute, EcuShared.GAIN_MIN, EcuShared.GAIN_MAX)
+        end)
+    end
+end)
+task.spawn(function()
+    while State.Alive do
+        task.wait(1)
+        if State.ForceMaxEcu then
+            pcall(function()
+                local spawned = Workspace:FindFirstChild("SpawnedVehicles")
+                if spawned then
+                    for _, veh in ipairs(spawned:GetChildren()) do
+                        if veh:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+                            if veh:GetAttribute("EcuGain") ~= 2.0 then
+                                veh:SetAttribute("EcuGain", 2.0)
+                                veh:SetAttribute("EcuFeedback", HttpService:JSONEncode({
+                                    Afr = 1.0, Ign = 1.0, Air = 1.0, Tps = 1.0, Oil = 1.0, Fuel = 1.0
+                                }))
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════
+-- FAKE NAME & STREAMER MODE ANONYMIZER
+-- ═══════════════════════════════════════
+local RealName = LocalPlayer.Name
+local RealDisplayName = LocalPlayer.DisplayName
+
+local function ApplyFakeName()
+    if not State.FakeNameEnabled then return end
+    local targetName = State.FakeName or "Honymoon Hub"
+
+    -- 1. Character Nametag & Humanoid
+    local char = LocalPlayer.Character
+    if char then
+        local tag = char:FindFirstChild("Nametag", true)
+        local pn = tag and tag:FindFirstChild("PlayerName")
+        if pn and pn.Text ~= targetName then
+            pn.Text = targetName
+        end
+        local hum = char:FindFirstChildWhichIsA("Humanoid")
+        if hum and hum.DisplayName ~= targetName then
+            hum.DisplayName = targetName
+        end
+    end
+
+    -- 2. PlayerGui TextLabels
+    local pgui = LocalPlayer:FindFirstChild("PlayerGui")
+    if pgui then
+        for _, v in ipairs(pgui:GetDescendants()) do
+            if v:IsA("TextLabel") and (v.Text:find(RealName) or v.Text:find(RealDisplayName)) then
+                v.Text = v.Text:gsub(RealName, targetName):gsub(RealDisplayName, targetName)
+            end
+        end
+    end
+
+    -- 3. Vehicle OwnerName Attributes & Labels
+    local sv = Workspace:FindFirstChild("SpawnedVehicles")
+    if sv then
+        for _, veh in ipairs(sv:GetChildren()) do
+            if veh:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+                if veh:GetAttribute("OwnerName") ~= targetName then
+                    pcall(veh.SetAttribute, veh, "OwnerName", targetName)
+                end
+            end
+        end
+    end
+end
+
+-- Hook CharacterAdded & Nametag change
+local function HookCharacterNametag(char)
+    if not char then return end
+    task.spawn(function()
+        local tag = char:WaitForChild("Nametag", 10)
+        local pn = tag and tag:WaitForChild("PlayerName", 10)
+        if pn then
+            if State.FakeNameEnabled then
+                pn.Text = State.FakeName or "Honymoon Hub"
+            end
+            pn:GetPropertyChangedSignal("Text"):Connect(function()
+                if State.FakeNameEnabled and pn.Text ~= State.FakeName then
+                    pn.Text = State.FakeName
+                end
+            end)
+        end
+        local hum = char:WaitForChild("Humanoid", 10)
+        if hum and State.FakeNameEnabled then
+            hum.DisplayName = State.FakeName
+        end
+    end)
+end
+
+if LocalPlayer.Character then
+    HookCharacterNametag(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(HookCharacterNametag)
+
+-- Continuous background sync
+task.spawn(function()
+    while State.Alive do
+        if State.FakeNameEnabled then
+            pcall(ApplyFakeName)
+        end
+        task.wait(1.5)
+    end
+end)
+
+-- Metatable Index Hook for complete local spoofing
+pcall(function()
+    if hookmetamethod then
+        local oldIndex
+        oldIndex = hookmetamethod(game, "__index", function(self, key)
+            if not checkcaller() and State.FakeNameEnabled then
+                if self == LocalPlayer then
+                    if key == "DisplayName" or key == "Name" then
+                        return State.FakeName or "Honymoon Hub"
+                    end
+                end
+            end
+            return oldIndex(self, key)
+        end)
+    end
+end)
+-- Fast job uniform switch via Lockers (Anti-Cheat Safe: Navigates via SimWalk / SimRide, Zero TP)
+local function SwitchJob(targetJob)
+    local currentJob = LocalPlayer:GetAttribute("Job")
+    local currentUniform = LocalPlayer:GetAttribute("Uniform")
+    if currentJob == targetJob and currentUniform == targetJob then
+        return true
+    end
+
+    local lockerFolder = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("JobLockers")
+    if not lockerFolder then return false end
+
+    -- Safe helper to travel to locker cabinet via SimWalk/SimRide and equip uniform
+    local function TravelAndEquip(lockerObj)
+        if not lockerObj then return false end
+        local cab = lockerObj:FindFirstChild("Cabinet")
+        local prompt = cab and cab:FindFirstChild("LockerPrompt")
+        if not (cab and prompt) then return false end
+
+        local targetPos = (cab.CFrame * CFrame.new(0, 0, 2.5)).Position
+        local hrp = SafeRoot()
+        if not hrp then return false end
+
+        local dist = (Vector3.new(targetPos.X, hrp.Position.Y, targetPos.Z) - hrp.Position).Magnitude
+
+        -- If far (> 75 studs), ride motorcycle near entrance first, then walk in
+        if dist > 75 then
+            local parkPos = (cab.CFrame * CFrame.new(0, 0, 15)).Position
+            SimRide(parkPos, 65)
+            task.wait(0.3)
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+            if hum and hum.Sit then
+                hum.Sit = false
+                task.wait(0.3)
+            end
+        end
+
+        -- Walk directly to the locker cabinet
+        SimWalk(targetPos, 28)
+        task.wait(0.2)
+
+        -- Activate locker prompt within legitimate proximity
+        hrp = SafeRoot()
+        if hrp and (hrp.Position - cab.Position).Magnitude <= 12 then
+            pcall(fireproximityprompt, prompt, 0)
+            task.wait(0.8)
+            return true
+        end
+        return false
+    end
+
+    -- 1. If currently wearing another uniform, strip it off first
+    if currentJob and currentJob ~= "Citizen" and currentUniform and currentUniform ~= targetJob then
+        local currentLocker = lockerFolder:FindFirstChild("Locker_" .. currentJob)
+        if currentLocker then
+            TravelAndEquip(currentLocker)
+        end
+    end
+
+    -- 2. Travel to the target job locker and wear the uniform
+    local targetLocker = lockerFolder:FindFirstChild("Locker_" .. targetJob)
+    if targetLocker then
+        TravelAndEquip(targetLocker)
+    end
+
+    return LocalPlayer:GetAttribute("Job") == targetJob
+end
+-- ═══════════════════════════════════════
+-- AUTO FARM LOOPS
+-- ═══════════════════════════════════════
+-- Mechanic Auto Farm
+local function RunMechanicStep()
+    local currentJob = LocalPlayer:GetAttribute("Job")
+    if currentJob ~= "Mechanic" then
+        SwitchJob("Mechanic")
+        return
+    end
+    local taskRaw = LocalPlayer:GetAttribute("WorkTask")
+    local taskObj = nil
+    if type(taskRaw) == "string" and taskRaw ~= "" then
+        pcall(function() taskObj = HttpService:JSONDecode(taskRaw) end)
+    end
+    -- No task: check cooldown and Take task from Board
+    if not taskObj then
+        local nextAt = LocalPlayer:GetAttribute("WorkNextAt") or 0
+        local waitLeft = nextAt - Workspace:GetServerTimeNow()
+        if waitLeft <= 0 then
+            local boardPos = Vector3.new(154.5, 3.42, -194)
+            if State.MechanicMoveMode == "SimWalk" then
+                SimWalk(boardPos, State.MechanicWalkSpeed)
+            else
+                SafeTeleport(boardPos + Vector3.new(0, 1.0, 0))
+            end
+            task.wait(0.2)
+            pcall(NetSeal.invoke, WorkRemote, "Take", nil)
+            task.wait(0.4)
+        end
+        return
+    end
+    -- Step: "go" -> Walk to station and invoke "Do"
+    if taskObj.step == "go" then
+        local station = taskObj.station
+        local stationPos = JobPlaces and JobPlaces:GetAttribute("Mechanic_" .. station)
+        if typeof(stationPos) == "Vector3" then
+            if State.MechanicMoveMode == "SimWalk" then
+                SimWalk(stationPos, State.MechanicWalkSpeed)
+            else
+                SafeTeleport(stationPos + Vector3.new(0, 1.5, 0))
+            end
+            task.wait(0.2)
+            pcall(NetSeal.invoke, WorkRemote, "Do", station)
+            task.wait(0.4)
+        end
+        return
+    end
+    -- Step: "doing" -> Wait MIN_TIME (3.2s) and invoke "Done"
+    if taskObj.step == "doing" then
+        task.wait(State.MechanicDelay)
+        pcall(NetSeal.invoke, WorkRemote, "Done", 1)
+        task.wait(0.5)
+        return
+    end
+end
+-- Builder Auto Farm
+local function RunBuilderStep()
+    local currentJob = LocalPlayer:GetAttribute("Job")
+    if currentJob ~= "Builder" then
+        SwitchJob("Builder")
+        return
+    end
+    local taskRaw = LocalPlayer:GetAttribute("WorkTask")
+    local taskObj = nil
+    if type(taskRaw) == "string" and taskRaw ~= "" then
+        pcall(function() taskObj = HttpService:JSONDecode(taskRaw) end)
+    end
+
+    local function DoBuilderMove(pos)
+        if State.BuilderMoveMode == "SimRide" then
+            SimRide(pos, State.BuilderRideSpeed)
+        elseif State.BuilderMoveMode == "SimWalk" then
+            SimWalk(pos, State.BuilderWalkSpeed)
+        else
+            SafeTeleport(pos + Vector3.new(0, 1.0, 0))
+        end
+    end
+
+    -- No task: check cooldown and Take task from Board
+    if not taskObj then
+        local nextAt = LocalPlayer:GetAttribute("WorkNextAt") or 0
+        local waitLeft = nextAt - Workspace:GetServerTimeNow()
+        if waitLeft <= 0 then
+            local boardPos = Vector3.new(98, 2.6, 374)
+            DoBuilderMove(boardPos)
+            task.wait(0.2)
+            pcall(NetSeal.invoke, WorkRemote, "Take", nil)
+            task.wait(0.4)
+        end
+        return
+    end
+    -- Step: "carry" -> Pile to Mixer
+    if taskObj.step == "carry" then
+        local mixerPos = Vector3.new(136, 2.6, 390.5)
+        DoBuilderMove(mixerPos)
+        task.wait(0.2)
+        pcall(NetSeal.invoke, WorkRemote, "Done", 1)
+        task.wait(0.5)
+        return
+    end
+    -- Step: "go" -> Walk/Ride to station
+    if taskObj.step == "go" then
+        local station = taskObj.station
+        local stationPos = JobPlaces and JobPlaces:GetAttribute("Builder_" .. station)
+        if typeof(stationPos) == "Vector3" then
+            DoBuilderMove(stationPos)
+            task.wait(0.2)
+            pcall(NetSeal.invoke, WorkRemote, "Do", station)
+            task.wait(0.4)
+        end
+        return
+    end
+    -- Step: "doing" -> Wait MIN_TIME and invoke "Done"
+    if taskObj.step == "doing" then
+        task.wait(State.MechanicDelay)
+        pcall(NetSeal.invoke, WorkRemote, "Done", 1)
+        task.wait(0.5)
+        return
+    end
+end
+-- Delivery Auto Farm (Rider Delivery)
+local function RunDeliveryStep()
+    local currentJob = LocalPlayer:GetAttribute("Job")
+    if currentJob ~= "Delivery" then
+        SwitchJob("Delivery")
+        return
+    end
+    local delState = LocalPlayer:GetAttribute("DeliveryState") or "Off"
+    if delState == "Off" then
+        pcall(NetSeal.invoke, DeliveryRemote, "Start", State.DeliveryMode)
+        task.wait(1)
+        return
+    end
+    if delState == "Offer" and State.AutoAcceptOffer then
+        pcall(NetSeal.invoke, DeliveryRemote, "Accept", nil)
+        task.wait(0.5)
+        return
+    end
+    local jobRaw = LocalPlayer:GetAttribute("DeliveryJob")
+    local jobObj = nil
+    if type(jobRaw) == "string" and jobRaw ~= "" then
+        pcall(function() jobObj = HttpService:JSONDecode(jobRaw) end)
+    end
+    if not jobObj then return end
+
+    local function DoDeliveryMove(target)
+        if State.DeliveryMoveMode == "SimRide" then
+            SimRide(target, State.DeliveryRideSpeed)
+        elseif State.DeliveryMoveMode == "SimWalk" then
+            SimWalk(target, State.DeliveryWalkSpeed)
+        else
+            SafeTeleport(target + Vector3.new(0, 1.5, 0))
+        end
+    end
+
+    if delState == "ToShop" and jobObj.shop then
+        local target = Vector3.new(jobObj.shop.x, (jobObj.shop.y or 1) + 2, jobObj.shop.z)
+        DoDeliveryMove(target)
+        task.wait(0.4)
+        for _ = 1, 6 do
+            if LocalPlayer:GetAttribute("DeliveryArrived") == true then
+                pcall(NetSeal.invoke, DeliveryRemote, "Confirm", nil)
+                task.wait(0.5)
+                break
+            end
+            task.wait(0.3)
+        end
+        return
+    end
+    if delState == "ToHome" and jobObj.home then
+        local target = Vector3.new(jobObj.home.x, (jobObj.home.y or 1) + 2, jobObj.home.z)
+        DoDeliveryMove(target)
+        task.wait(0.4)
+        for _ = 1, 6 do
+            if LocalPlayer:GetAttribute("DeliveryArrived") == true then
+                pcall(NetSeal.invoke, DeliveryRemote, "Confirm", nil)
+                task.wait(0.5)
+                break
+            end
+            task.wait(0.3)
+        end
+        return
+    end
+end
+-- Master Farm Worker Thread
+task.spawn(function()
+    while State.Alive do
+        if State.Kaitun or State.AutoMechanic then
+            pcall(RunMechanicStep)
+        elseif State.AutoBuilder then
+            pcall(RunBuilderStep)
+        elseif State.AutoDelivery then
+            pcall(RunDeliveryStep)
+        end
+        task.wait(0.5)
+    end
+end)
+-- Auto Quests Claimer
+local function CheckAndClaimQuests()
+    local qRaw = LocalPlayer:GetAttribute("Quests")
+    if type(qRaw) ~= "string" or qRaw == "" then return end
+    local qData = nil
+    pcall(function() qData = HttpService:JSONDecode(qRaw) end)
+    if not qData then return end
+    for _, period in ipairs({ "daily", "weekly" }) do
+        local pInfo = qData[period]
+        local questsList = QuestShared[period:upper()] or {}
+        if pInfo and pInfo.p and type(pInfo.c) == "table" then
+            local claimedMap = {}
+            for _, id in ipairs(pInfo.c) do claimedMap[id] = true end
+            for _, q in ipairs(questsList) do
+                if not claimedMap[q.id] then
+                    local currentVal = pInfo.p[q.stat] or 0
+                    if currentVal >= q.goal then
+                        pcall(NetSeal.invoke, QuestRemote, "Claim", period, q.id)
+                        task.wait(0.3)
+                    end
+                end
+            end
+        end
+    end
+end
+task.spawn(function()
+    while State.Alive do
+        if State.AutoQuests then
+            pcall(CheckAndClaimQuests)
+        end
+        task.wait(10)
+    end
+end)
+-- Auto Vehicle Repair
+task.spawn(function()
+    while State.Alive do
+        if State.AutoRepair then
+            pcall(function()
+                local spawned = Workspace:FindFirstChild("SpawnedVehicles")
+                if spawned then
+                    for _, veh in ipairs(spawned:GetChildren()) do
+                        if veh:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+                            local health = CareShared.health(veh)
+                            if health < 85 then
+                                pcall(NetSeal.invoke, CareRemote, "Repair", veh)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(5)
+    end
+end)
+-- ═══════════════════════════════════════
+-- SMART FARMCHECK ANTI-BOT SOLVER
+-- ═══════════════════════════════════════
+local EMOJI_CATEGORIES = {
+    vehicle = {
+        "🚗", "🏎️", "🏎", "🛵", "🏍️", "🏍", "🚲", "🚌", "✈️", "🚀", "🚢", "🚜", "🚙", "🚘",
+        "🚛", "🚑", "🚒", "🚓", "🚕", "🛺", "🚆", "🚄", "🚅", "🚂", "🚤", "⛵", "🚁", "🛸",
+        "🛩️", "🚐", "🚚", "🛴", "🛹", "🛞", "🛳️", "🛥️", "🚎"
+    },
+    animal = {
+        "🐶", "🐱", "🐭", "🐰", "🐯", "🐮", "🐸", "🐹", "🦊", "🐻", "🐼", "🐨", "🦁", "🐷",
+        "🐵", "🐔", "🐧", "🐦", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🦄", "🐝", "🐛",
+        "🦋", "🐌", "🐞", "🐜", "🦟", "🦗", "🕷️", "🦂", "🐢", "🐍", "🦎", "🦖", "🦕", "🐙",
+        "🦑", "🦐", "🦞", "🦀", "🐡", "🐠", "🐟", "🐬", "🐳", "🐋", "🦈", "🐊", "🐅", "🐆",
+        "🦓", "🦍", "🦧", "🦣", "🐘", "🦛", "🦏", "🐪", "🐫", "🦒", "🦘", "🦬", "🐃", "🐂",
+        "🐄", "🐎", "🐖", "🐏", "🐑", "🐐", "🦌", "🐕", "🐩", "🦮", "🐕‍🦺", "🐈", "🐈‍⬛", "🐓",
+        "🦃", "🦚", "🦜", "🦢", "🦩", "🕊️", "🐇", "🦝", "🦨", "🦡", "🦫", "🦦", "🦥", "🐁",
+        "🐀", "🐿️", "🦔"
+    },
+    food = {
+        "🍔", "🍕", "🍜", "🍎", "🍌", "🥐", "🍟", "🍏", "🍐", "🍊", "🍋", "🍉", "🍇", "🍓",
+        "🫐", "🍈", "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🍆", "🥑", "🥦", "🥬", "🥒",
+        "🌶️", "🌽", "🥕", "🧄", "🧅", "🥔", "🍠", "🍞", "🥖", "🥨", "🧀", "🥚", "🍳", "🥞",
+        "🧇", "🥓", "🥩", "🍗", "🍖", "🌭", "🥪", "🥙", "🧆", "🌮", "🌯", "🥗", "🥘", "🥫",
+        "🍝", "🍲", "🍛", "🍣", "🍱", "🥟", "🍤", "🍙", "🍚", "🍘", "🍥", "🍡", "🥠", "🥮",
+        "🍧", "🍨", "🍦", "🥧", "🧁", "🍰", "🎂", "🍮", "🍭", "🍬", "🍫", "🍿", "🍩", "🍪",
+        "🍺", "🍻", "🥂", "🍷", "🥃", "🍸", "🍹", "🧉", "🍾", "🍶", "🍵", "☕", "🧃", "🥤",
+        "🧋", "🥛"
+    },
+    tool = {
+        "🔨", "🔧", "🪛", "⛏️", "⚙️", "🪓", "🔩", "🗜️", "✂️", "🗡️", "⚔️", "🛡️", "🗝️", "🔑",
+        "🪚", "🧰", "🪜", "🪝", "📏", "📐", "🧲", "🔦", "💡", "🪞", "🧭"
+    },
+}
+local KEYWORD_MAP = {
+    { category = "vehicle", words = { "ยานพาหนะ", "ยาน", "รถ", "รถยนต์", "มอไซค์", "มอเตอร์ไซค์", "จักรยาน", "เครื่องบิน", "เรือ", "รถไฟ", "vehicle", "car", "bike", "motorcycle", "plane", "boat", "train" } },
+    { category = "animal", words = { "สัตว์", "สัตว์เลี้ยง", "สิ่งมีชีวิต", "หมา", "สุนัข", "แมว", "นก", "ปลา", "animal", "pet", "dog", "cat", "bird", "fish", "creature" } },
+    { category = "food", words = { "อาหาร", "ของกิน", "ผลไม้", "ผัก", "ขนม", "เครื่องดื่ม", "ของหวาน", "food", "fruit", "drink", "meal", "snack", "vegetable", "dessert", "eat" } },
+    { category = "tool", words = { "เครื่องมือ", "อุปกรณ์", "ช่าง", "ซ่อม", "เครื่องจักร", "อาวุธ", "tool", "tools", "equipment", "hardware", "fix", "repair", "weapon" } },
+}
+-- Fast lookup set for categories
+local CATEGORY_SETS = {}
+for cat, emojis in pairs(EMOJI_CATEGORIES) do
+    CATEGORY_SETS[cat] = {}
+    for _, em in ipairs(emojis) do
+        CATEGORY_SETS[cat][em] = true
+    end
+end
+local function SolveFarmCheck(data)
+    local prompt = tostring(data.prompt or "")
+    -- 1. Exact emoji in prompt
+    for _, opt in ipairs(data.options or {}) do
+        if opt.emoji and prompt:find(opt.emoji, 1, true) then
+            return opt.id, opt.emoji, "exact"
+        end
+    end
+    -- 2. Category matching by keywords
+    for _, km in ipairs(KEYWORD_MAP) do
+        for _, word in ipairs(km.words) do
+            if prompt:find(word, 1, true) then
+                local catSet = CATEGORY_SETS[km.category]
+                if catSet then
+                    for _, opt in ipairs(data.options or {}) do
+                        if opt.emoji and catSet[opt.emoji] then
+                            return opt.id, opt.emoji, km.category
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil, nil, "unknown"
+end
+local function SolveFarmCheckGui(promptText, candidateButtons)
+    local prompt = tostring(promptText or "")
+    -- 1. Exact emoji match
+    for _, cand in ipairs(candidateButtons) do
+        if cand.emoji and prompt:find(cand.emoji, 1, true) then
+            return cand.button, cand.emoji, "exact"
+        end
+    end
+    -- 2. Category keyword matching
+    for _, km in ipairs(KEYWORD_MAP) do
+        for _, word in ipairs(km.words) do
+            if prompt:find(word, 1, true) then
+                local catSet = CATEGORY_SETS[km.category]
+                if catSet then
+                    for _, cand in ipairs(candidateButtons) do
+                        if cand.emoji and catSet[cand.emoji] then
+                            return cand.button, cand.emoji, km.category
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil, nil, "unknown"
+end
+-- Layer 1: Server Remote Event Interceptor
+if FarmCheckRemote then
+    FarmCheckRemote.OnClientEvent:Connect(function(action, data)
+        if action == "Show" and type(data) == "table" and State.AutoFarmCheck then
+            task.spawn(function()
+                warn("[Honymoon Hub] FarmCheck anti-bot challenge received: " .. tostring(data.prompt))
+                task.wait(1.5) -- Human-like delay
+                local bestId, bestEmoji, matchKind = SolveFarmCheck(data)
+                if bestId then
+                    pcall(NetSeal.invoke, FarmCheckAnswerRemote, bestId)
+                    warn(string.format("[Honymoon Hub] FarmCheck automatically solved with: %s (matched via %s)", tostring(bestEmoji), tostring(matchKind)))
+                else
+                    warn("[Honymoon Hub] FarmCheck requires player response: " .. tostring(data.prompt))
+                    pcall(function()
+                        local ping = Instance.new("Sound")
+                        ping.SoundId = "rbxasset://sounds/electronicpingshort.wav"
+                        ping.Volume = 1
+                        ping.Parent = Workspace
+                        ping:Play()
+                    end)
+                end
+            end)
+        end
+    end)
+end
+-- Layer 2: PlayerGui GUI Watcher & Auto Clicker
+task.spawn(function()
+    local VirtualInputManager = game:GetService("VirtualInputManager")
+    while State.Alive do
+        if State.AutoFarmCheck then
+            pcall(function()
+                local pg = LocalPlayer:FindFirstChild("PlayerGui")
+                local fcGui = pg and pg:FindFirstChild("FarmCheck")
+                if fcGui and fcGui.Enabled then
+                    local dimFrame = fcGui:FindFirstChild("Frame")
+                    if dimFrame and dimFrame.Visible then
+                        local panel = dimFrame:FindFirstChild("Frame")
+                        if panel then
+                            local promptText = ""
+                            local grid = nil
+                            for _, child in ipairs(panel:GetChildren()) do
+                                if child:IsA("TextLabel") and child.Text ~= "" and not child.Text:find("เช็กว่าเป็นคนจริง") and not child.Text:find("กันโปรฟาร์ม") then
+                                    promptText = child.Text
+                                elseif child:IsA("Frame") and child:FindFirstChildWhichIsA("UIGridLayout") then
+                                    grid = child
+                                end
+                            end
+                            if promptText ~= "" and grid then
+                                local candidateButtons = {}
+                                for _, btn in ipairs(grid:GetChildren()) do
+                                    if btn:IsA("TextButton") then
+                                        local emojiLabel = btn:FindFirstChildWhichIsA("TextLabel")
+                                        local emoji = emojiLabel and emojiLabel.Text
+                                        if emoji and emoji ~= "" then
+                                            table.insert(candidateButtons, { button = btn, emoji = emoji })
+                                        end
+                                    end
+                                end
+                                if #candidateButtons > 0 then
+                                    local targetBtn, targetEmoji, matchKind = SolveFarmCheckGui(promptText, candidateButtons)
+                                    if targetBtn then
+                                        warn(string.format("[Honymoon Hub] FarmCheck GUI Watcher: Solved %s via %s. Clicking...", tostring(targetEmoji), tostring(matchKind)))
+                                        task.wait(1.2)
+                                        if getconnections then
+                                            for _, c in ipairs(getconnections(targetBtn.Activated)) do c:Fire() end
+                                        end
+                                        local absPos = targetBtn.AbsolutePosition
+                                        local absSize = targetBtn.AbsoluteSize
+                                        local cx = absPos.X + absSize.X / 2
+                                        local cy = absPos.Y + absSize.Y / 2
+                                        pcall(function()
+                                            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                                            task.wait(0.05)
+                                            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+                                        end)
+                                        task.wait(3)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(1.5)
+    end
+end)
+-- ═══════════════════════════════════════
+-- MOVEMENT & ANTI-AFK
+-- ═══════════════════════════════════════
+-- Noclip Loop
+RunService.Stepped:Connect(function()
+    if State.Noclip and Character then
+        for _, part in ipairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") and part.CanCollide then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if State.WalkSpeedOn and Character then
+        local hum = Character:FindFirstChildOfClass("Humanoid")
+        if hum and hum.WalkSpeed ~= State.WalkSpeed then
+            hum.WalkSpeed = State.WalkSpeed
+        end
+    end
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if State.InfJump and Character then
+        local hum = Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+LocalPlayer.Idled:Connect(function()
+    if State.AntiAfk then
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end
+end)
+-- Auto Reconnect
+pcall(function()
+    local CoreGui = game:GetService("CoreGui")
+    local promptOverlay = CoreGui:WaitForChild("RobloxPromptGui", 5) and CoreGui.RobloxPromptGui:WaitForChild("promptOverlay", 5)
+    if promptOverlay then
+        promptOverlay.ChildAdded:Connect(function(child)
+            if State.AutoReconnect and child.Name == "ErrorPrompt" then
+                task.wait(2)
+                TeleportService:Teleport(game.PlaceId, LocalPlayer)
+            end
+        end)
+    end
+end)
+-- ═══════════════════════════════════════
+-- UI INTERFACE (MARIO HUB ENGINE)
+-- ═══════════════════════════════════════
+pcall(MarioBanner.Step, "Script Core")
+local function BuildInterface()
+    local rawUI
+    local okFile, localUI = pcall(function()
+        if isfile and isfile("Mario-Template/ui.lua") then
+            return readfile("Mario-Template/ui.lua")
+        elseif isfile and isfile("ui.lua") then
+            return readfile("ui.lua")
+        end
+    end)
+    if okFile and type(localUI) == "string" and localUI:find("return Library") then
+        rawUI = localUI
+    else
+        local okHttp, httpUI = pcall(function() return game:HttpGet(Config.UiSource) end)
+        if okHttp and type(httpUI) == "string" and httpUI:find("return Library") then
+            rawUI = httpUI
+        end
+    end
+    if not rawUI then
+        warn("[Honymoon Hub] Failed to load UI Library!")
+        return
+    end
+    rawUI = rawUI:gsub('warn%("%[Honymoon Hub%] " %.%. tostring%(message%)%)', "if not tostring(message):find('Plugin') then warn('[Honymoon Hub] ' .. tostring(message)) end")
+    local chunk, compileErr = loadstring(rawUI)
+    if not chunk then
+        warn("[Honymoon Hub] UI compile error: " .. tostring(compileErr))
+        return
+    end
+    local ok, Library = pcall(chunk)
+    if not ok or type(Library) ~= "table" then return end
+    pcall(MarioBanner.Step, "UI Library")
+    local T = function(en, th) return Library:T(en, th) end
+    local Window = Library:CreateWindow({
+        Title = "Honymoon Hub",
+        SubTitle = "MAHANAKHON RACING - Full Auto By xDSpyZ",
+        MenuKey = Enum.KeyCode.RightControl,
+        ConfigFolder = Config.SaveFolder,
+        Language = "Auto",
+        Theme = "Sakura",
+        OnUnlocked = function()
+            Library:Notify("Honymoon Hub", "MAHANAKHON RACING Script Ready!", 5, "Success")
+        end
+    })
+    -- ── TAB 1: KAITUN (ALL-IN-ONE) ──────────────────────────
+    Window:AddTabSection(T("Automation", "ระบบอัตโนมัติ"))
+    local KaitunTab = Window:AddTab(T("Kaitun", "ไก่ตัน"), "crown", T("Auto progression & all-in-one farm", "ฟาร์มอัตโนมัติทุกอย่างแบบครบวงจร"))
+    local KaitunBox = KaitunTab:AddLeftGroupbox(T("Master Kaitun", "ระบบไก่ตันหลัก"), "star")
+    KaitunBox:AddToggle("Kaitun", {
+        Text = T("Master Kaitun (Fast Cash)", "เปิดไก่ตันฟาร์มเงินอัตโนมัติ"),
+        Description = T("Automatically clocks in as Mechanic, completes bay repairs, earns ฿4,500+/min", "เปลี่ยนชุดช่าง ซ่อมรถในช่อง และรับเงินอัตโนมัติทันที"),
+        Default = State.Kaitun,
+        Callback = function(v)
+            State.Kaitun = v
+            if v then
+                State.AutoMechanic = true
+                Library:Notify("Kaitun", "Master Kaitun Activated!", 3, "Success")
+            end
+        end
+    }):AddKeyPicker("KaitunKey", { Default = "None", Mode = "Toggle" })
+    local StatusBox = KaitunTab:AddRightGroupbox(T("Player Status", "สถานะผู้เล่น"), "info")
+    local CashLabel = StatusBox:AddLabel("Cash: ฿-")
+    local JobLabel = StatusBox:AddLabel("Job: -")
+    local WorkCountLabel = StatusBox:AddLabel("Completed Tasks: -")
+    local DeliveryLabel = StatusBox:AddLabel("Delivery Rating: -")
+    local CooldownLabel = StatusBox:AddLabel("Next Task: Ready")
+    task.spawn(function()
+        while State.Alive do
+            pcall(function()
+                local cash = LocalPlayer:GetAttribute("Cash") or 0
+                local job = LocalPlayer:GetAttribute("Job") or "None"
+                local workCount = LocalPlayer:GetAttribute("WorkCount") or 0
+                local delRating = LocalPlayer:GetAttribute("DeliveryRating") or 5
+                local nextAt = LocalPlayer:GetAttribute("WorkNextAt") or 0
+                local waitSec = math.max(0, math.ceil(nextAt - Workspace:GetServerTimeNow()))
+                CashLabel:SetText(string.format("Cash: ฿%s", GameShared.formatNumber(cash)))
+                JobLabel:SetText(string.format("Job: %s", tostring(job)))
+                WorkCountLabel:SetText(string.format("Completed Tasks: %s", tostring(workCount)))
+                DeliveryLabel:SetText(string.format("Delivery Rating: %.1f ★", delRating))
+                CooldownLabel:SetText(waitSec > 0 and string.format("Next Task: in %ds", waitSec) or "Next Task: Ready ✓")
+            end)
+            task.wait(1)
+        end
+    end)
+    -- ── TAB 2: JOBS & FARMING ──────────────────────────────
+    Window:AddTabSection(T("Farming", "ฟาร์มงานและอาชีพ"))
+    local FarmTab = Window:AddTab(T("Jobs", "งาน"), "target", T("Mechanic, Builder & Delivery", "ฟาร์มงานช่าง, ก่อสร้าง และไรเดอร์"))
+    local MecBox = FarmTab:AddLeftGroupbox(T("Mechanic Auto Farm", "งานช่างซ่อมรถ (แนะนำ)"), "wrench")
+    MecBox:AddToggle("AutoMechanic", {
+        Text = T("Auto Mechanic (Bay Repairs)", "ออโต้ฟาร์มช่างซ่อมรถ"),
+        Description = T("Simulates realistic walking between Bay1-3 with radar & 3D path", "เดินไปช่องซ่อม 1-3 ด้วย SimWalk พร้อมเรดาร์หลบสิ่งกีดขวาง"),
+        Default = State.AutoMechanic,
+        Callback = function(v) State.AutoMechanic = v end
+    })
+    MecBox:AddDropdown("MechanicMoveMode", {
+        Text = T("Movement Mode", "รูปแบบการเคลื่อนที่"),
+        Values = { "SimWalk", "InstantTP" },
+        Default = State.MechanicMoveMode,
+        Callback = function(v) State.MechanicMoveMode = v end
+    })
+    MecBox:AddSlider("MechanicWalkSpeed", {
+        Text = T("SimWalk Speed", "ความเร็วเดิน (SimWalk)"),
+        Min = 16,
+        Max = 45,
+        Default = State.MechanicWalkSpeed,
+        Rounding = 0,
+        Callback = function(v) State.MechanicWalkSpeed = v end
+    })
+    MecBox:AddToggle("DrawWalkPath", {
+        Text = T("Draw 3D Navigation Path", "วาดเส้นทางเดิน 3D บนพื้น"),
+        Description = T("Renders neon GPS guide lines on the ground to destination", "แสดงเส้นนีออนบอกทิศทางบนพื้นไปยังจุดหมาย"),
+        Default = State.DrawWalkPath,
+        Callback = function(v)
+            State.DrawWalkPath = v
+            if not v then CleanPathVisuals() end
+        end
+    })
+    MecBox:AddToggle("RadarAvoidance", {
+        Text = T("Radar Obstacle Avoidance", "เรดาร์ตรวจจับและหลบสิ่งกีดขวาง"),
+        Description = T("Casts forward whiskers to avoid obstacles & auto-jump props", "สแกนสิ่งกีดขวางด้านหน้าและกระโดดข้าม/หลบอัตโนมัติ"),
+        Default = State.RadarAvoidance,
+        Callback = function(v) State.RadarAvoidance = v end
+    })
+    MecBox:AddSlider("MechanicDelay", {
+        Text = T("Minigame Wait (Sec)", "ระยะเวลารองานเสร็จ"),
+        Min = 3,
+        Max = 6,
+        Default = State.MechanicDelay,
+        Rounding = 1,
+        Callback = function(v) State.MechanicDelay = v end
+    })
+    MecBox:AddButton({
+        Text = T("Clock In: Mechanic", "เดินไปใส่ชุดช่างซ่อมรถ (SimWalk)"),
+        Func = function()
+            task.spawn(function()
+                Library:Notify("Clock In", T("Navigating to Mechanic Locker...", "กำลังเดินไปตู้ชุดช่างซ่อมรถ..."), 3, "Info")
+                local ok = SwitchJob("Mechanic")
+                if ok then
+                    Library:Notify("Clock In", T("Clocked in as Mechanic!", "เข้างานช่างซ่อมรถสำเร็จ!"), 3, "Success")
+                end
+            end)
+        end
+    })
+    local BuildBox = FarmTab:AddRightGroupbox(T("Construction Builder", "งานช่างก่อสร้าง"), "hammer")
+    BuildBox:AddToggle("AutoBuilder", {
+        Text = T("Auto Construction Builder", "ออโต้ฟาร์มช่างก่อสร้าง"),
+        Description = T("Carries cement, mixes, stacks bricks and paints walls via SimWalk/SimRide", "ยกปูน โม่ปูน ก่ออิฐ และทาสีอัตโนมัติด้วย SimWalk/SimRide"),
+        Default = State.AutoBuilder,
+        Callback = function(v) State.AutoBuilder = v end
+    })
+    BuildBox:AddDropdown("BuilderMoveMode", {
+        Text = T("Movement Mode", "รูปแบบการเคลื่อนที่"),
+        Values = { "SimWalk", "SimRide", "InstantTP" },
+        Default = State.BuilderMoveMode,
+        Callback = function(v) State.BuilderMoveMode = v end
+    })
+    BuildBox:AddSlider("BuilderWalkSpeed", {
+        Text = T("SimWalk Speed", "ความเร็วเดิน (SimWalk)"),
+        Min = 16,
+        Max = 45,
+        Default = State.BuilderWalkSpeed,
+        Rounding = 0,
+        Callback = function(v) State.BuilderWalkSpeed = v end
+    })
+    BuildBox:AddSlider("BuilderRideSpeed", {
+        Text = T("SimRide Speed", "ความเร็วขี่รถ (SimRide)"),
+        Min = 30,
+        Max = 120,
+        Default = State.BuilderRideSpeed,
+        Rounding = 0,
+        Callback = function(v) State.BuilderRideSpeed = v end
+    })
+    BuildBox:AddButton({
+        Text = T("Clock In: Builder", "เดินไปใส่ชุดช่างก่อสร้าง (SimWalk)"),
+        Func = function()
+            task.spawn(function()
+                Library:Notify("Clock In", T("Navigating to Builder Locker...", "กำลังเดินไปตู้ชุดช่างก่อสร้าง..."), 3, "Info")
+                local ok = SwitchJob("Builder")
+                if ok then
+                    Library:Notify("Clock In", T("Clocked in as Builder!", "เข้างานช่างก่อสร้างสำเร็จ!"), 3, "Success")
+                end
+            end)
+        end
+    })
+    local DelBox = FarmTab:AddLeftGroupbox(T("Rider Delivery", "งานไรเดอร์ส่งอาหาร"), "car")
+    DelBox:AddToggle("AutoDelivery", {
+        Text = T("Auto Delivery / Rider", "ออโต้ไรเดอร์ส่งของ"),
+        Description = T("Takes food/parcel orders, rides to shops & homes smoothly with ground lock", "รับออเดอร์ ขี่รถส่งถึงร้านและบ้านลูกค้าเสมือนจริง ไม่ตกแมพ"),
+        Default = State.AutoDelivery,
+        Callback = function(v) State.AutoDelivery = v end
+    })
+    DelBox:AddDropdown("DeliveryMode", {
+        Text = T("Delivery Type", "ประเภทงานส่ง"),
+        Values = { "food", "parcel", "ride" },
+        Default = State.DeliveryMode,
+        Callback = function(v)
+            State.DeliveryMode = v
+            pcall(NetSeal.invoke, DeliveryRemote, "Start", v)
+        end
+    })
+    DelBox:AddDropdown("DeliveryMoveMode", {
+        Text = T("Movement Mode", "รูปแบบการเคลื่อนที่"),
+        Values = { "SimRide", "SimWalk", "InstantTP" },
+        Default = State.DeliveryMoveMode,
+        Callback = function(v) State.DeliveryMoveMode = v end
+    })
+    DelBox:AddSlider("DeliveryRideSpeed", {
+        Text = T("SimRide Speed", "ความเร็วขี่รถ (SimRide)"),
+        Min = 30,
+        Max = 140,
+        Default = State.DeliveryRideSpeed,
+        Rounding = 0,
+        Callback = function(v) State.DeliveryRideSpeed = v end
+    })
+    DelBox:AddSlider("DeliveryWalkSpeed", {
+        Text = T("SimWalk Speed", "ความเร็วเดิน (SimWalk)"),
+        Min = 16,
+        Max = 45,
+        Default = State.DeliveryWalkSpeed,
+        Rounding = 0,
+        Callback = function(v) State.DeliveryWalkSpeed = v end
+    })
+    DelBox:AddToggle("AutoAcceptOffer", {
+        Text = T("Auto Accept Offers", "รับออเดอร์อัตโนมัติ"),
+        Default = State.AutoAcceptOffer,
+        Callback = function(v) State.AutoAcceptOffer = v end
+    })
+    DelBox:AddButton({
+        Text = T("Clock In: Delivery", "เดินไปใส่ชุดไรเดอร์ (SimWalk)"),
+        Func = function()
+            task.spawn(function()
+                Library:Notify("Clock In", T("Navigating to Delivery Locker...", "กำลังเดินไปตู้ชุดไรเดอร์..."), 3, "Info")
+                local ok = SwitchJob("Delivery")
+                if ok then
+                    Library:Notify("Clock In", T("Clocked in as Rider!", "เข้างานไรเดอร์ส่งของสำเร็จ!"), 3, "Success")
+                end
+            end)
+        end
+    })
+    -- ── TAB 3: QUESTS & REWARDS ─────────────────────────────
+    Window:AddTabSection(T("Rewards", "ภารกิจและรางวัล"))
+    local RewardTab = Window:AddTab(T("Quests", "เควสต์"), "gift", T("Daily, Weekly & Group Rewards", "เควสต์รายวัน รายสัปดาห์ และกลุ่ม"))
+    local QuestBox = RewardTab:AddLeftGroupbox(T("Quest Automation", "รับเควสต์อัตโนมัติ"), "flag")
+    QuestBox:AddToggle("AutoQuests", {
+        Text = T("Auto Claim Quests", "รับรางวัลเควสต์อัตโนมัติ"),
+        Description = T("Automatically claims Daily & Weekly quests for up to ฿40,000 each", "กดรับเงินรางวัลเควสต์รายวันและรายสัปดาห์ทันทีที่ผ่าน"),
+        Default = State.AutoQuests,
+        Callback = function(v) State.AutoQuests = v end
+    })
+    QuestBox:AddButton({
+        Text = T("Claim All Completed Quests", "กดรับเควสต์ที่ผ่านทั้งหมด"),
+        Func = function()
+            CheckAndClaimQuests()
+            Library:Notify("Quests", "Checked and claimed completed quests!", 3, "Success")
+        end
+    })
+    local GroupBox = RewardTab:AddRightGroupbox(T("Group & Promos", "รางวัลกลุ่มและโค้ด"), "crown")
+    GroupBox:AddButton({
+        Text = T("Claim Group Reward (฿1,000+)", "กดรับเงินกลุ่ม Roblox"),
+        Func = function()
+            local ok, success, msg = pcall(NetSeal.invoke, GroupRewardRemote, "Claim")
+            if ok and success then
+                Library:Notify("Group Reward", msg or "Claimed successfully!", 5, "Success")
+            else
+                Library:Notify("Group Reward", msg or "Already claimed or not in group!", 5, "Warning")
+            end
+        end
+    })
+    GroupBox:AddToggle("AutoFarmCheck", {
+        Text = T("Anti-Bot Auto Solver", "แกะบอตเช็กอัตโนมัติ (FarmCheck)"),
+        Description = T("Detects server anti-bot prompt and auto-selects correct emoji", "ตอบคำถามกันโปรของเซิร์ฟเวอร์ให้อัตโนมัติ"),
+        Default = State.AutoFarmCheck,
+        Callback = function(v) State.AutoFarmCheck = v end
+    })
+    GroupBox:AddButton({
+        Text = T("Test FarmCheck Solver", "ทดสอบระบบแก้ FarmCheck"),
+        Func = function()
+            local sample = {
+                { prompt = "เลือกภาพที่เป็น ยานพาหนะ", options = { { id = 1, emoji = "🍎" }, { id = 2, emoji = "🚗" }, { id = 3, emoji = "🐶" }, { id = 4, emoji = "🔨" } } },
+                { prompt = "เลือกภาพที่เป็น สัตว์", options = { { id = 1, emoji = "🐱" }, { id = 2, emoji = "✈️" }, { id = 3, emoji = "🍕" }, { id = 4, emoji = "🔧" } } },
+                { prompt = "เลือกภาพที่เป็น อาหาร", options = { { id = 1, emoji = "🛵" }, { id = 2, emoji = "🍌" }, { id = 3, emoji = "🐰" }, { id = 4, emoji = "⚙️" } } },
+                { prompt = "เลือกภาพที่เป็น เครื่องมือ", options = { { id = 1, emoji = "🍔" }, { id = 2, emoji = "🐸" }, { id = 3, emoji = "🚀" }, { id = 4, emoji = "🪛" } } },
+            }
+            local passed = 0
+            for _, s in ipairs(sample) do
+                local id, em, kind = SolveFarmCheck(s)
+                if id then passed = passed + 1 end
+            end
+            Library:Notify("FarmCheck Test", string.format("Tested 4 categories: %d/4 matched successfully!", passed), 4, "Success")
+        end
+    })
+    -- ── TAB 4: VEHICLE & CARE ──────────────────────────────
+    Window:AddTabSection(T("Vehicles", "ยานพาหนะและการดูแล"))
+    local VehTab = Window:AddTab(T("Vehicles", "รถ"), "scooter", T("Garage, Spawner & Maintenance", "โรงรถ เรียกรถ และซ่อมรถ"))
+    local CareBox = VehTab:AddLeftGroupbox(T("Maintenance", "การบำรุงรักษารถ"), "shield")
+    CareBox:AddToggle("AutoRepair", {
+        Text = T("Auto Repair Vehicle", "ซ่อมเครื่องยนต์อัตโนมัติ"),
+        Description = T("Repairs vehicle when engine health drops below 85%", "ซ่อมเครื่องยนต์ทันทีเมื่อความสมบูรณ์ต่ำกว่า 85%"),
+        Default = State.AutoRepair,
+        Callback = function(v) State.AutoRepair = v end
+    })
+    CareBox:AddButton({
+        Text = T("Repair Current Vehicle Now", "ซ่อมรถคันที่ขับอยู่ทันที"),
+        Func = function()
+            local repaired = false
+            local spawned = Workspace:FindFirstChild("SpawnedVehicles")
+            if spawned then
+                for _, veh in ipairs(spawned:GetChildren()) do
+                    if veh:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+                        pcall(NetSeal.invoke, CareRemote, "Repair", veh)
+                        repaired = true
+                    end
+                end
+            end
+            if repaired then
+                Library:Notify("Repair", "Vehicle repaired!", 3, "Success")
+            else
+                Library:Notify("Repair", "No owned vehicle spawned!", 3, "Warning")
+            end
+        end
+    })
+    local TuneBox = VehTab:AddLeftGroupbox(T("Performance & Max Tuning", "การจูนและอัปเกรดความเร็วสูงสุด"), "zap")
+    local function GetSeatedVeh()
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local seat = hum and hum.SeatPart
+        if not (seat and seat:IsA("BasePart")) then
+            return nil, T("Please sit in your vehicle first!", "กรุณานั่งขับรถของตัวเองก่อนใช้งาน!")
+        end
+        local spawned = Workspace:FindFirstChild("SpawnedVehicles")
+        if spawned then
+            for _, veh in ipairs(spawned:GetChildren()) do
+                if seat:IsDescendantOf(veh) then
+                    if veh:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+                        return veh, nil
+                    else
+                        return nil, T("This is not your vehicle!", "รถคันนี้ไม่ใช่รถของคุณ!")
+                    end
+                end
+            end
+        end
+        return nil, T("Please sit in your own vehicle first!", "กรุณานั่งขับรถของตัวเองก่อนใช้งาน!")
+    end
+    local function EnsureBay(veh)
+        if not veh then return false, "No vehicle found" end
+        if GameShared.inTuneBay(veh) then return true end
+        local bays = GameShared.tuneBays()
+        if #bays == 0 then return false, "No tune bays found" end
+        local bayCf = bays[1][1]
+        veh:PivotTo(bayCf * CFrame.new(0, 2, 0))
+        task.wait(0.5)
+        return GameShared.inTuneBay(veh)
+    end
+    TuneBox:AddButton({
+        Text = T("Auto Max Upgrade (Stage 3)", "อัปเกรดเครื่องและเบรกขั้นสูงสุด (Stage 3)"),
+        Func = function()
+            local veh, err = GetSeatedVeh()
+            if not veh then
+                Library:Notify("Tune", err or "Please sit in your vehicle first!", 3, "Warning")
+                return
+            end
+            EnsureBay(veh)
+            task.wait(0.3)
+            local ok1, r1, m1 = pcall(NetSeal.invoke, TuneUpgradeRemote, "Engine", veh, 3)
+            task.wait(0.4)
+            local ok2, r2, m2 = pcall(NetSeal.invoke, TuneUpgradeRemote, "Brake", veh, 3)
+            task.wait(0.4)
+            local ok3, r3, m3 = pcall(NetSeal.invoke, TuneShopRemote, "Confirm", veh)
+            if ok3 and r3 then
+                Library:Notify("Tune", "Vehicle upgraded to Stage 3 MAX!", 4, "Success")
+            else
+                Library:Notify("Tune", m1 or m2 or m3 or "Upgrade failed (check money)", 4, "Warning")
+            end
+        end
+    })
+    TuneBox:AddToggle("ForceMaxEcu", {
+        Text = T("Force 2.00x Max ECU Gain", "ล็อคแรงม้า ECU ×2.00 สูงสุด"),
+        Description = T("Enforces maximum 2.00x power boost across all vehicles", "บังคับความแรงกล่อง ECU สูงสุด 2.00 เท่า (+100% แรงม้า) ตลอดเวลา"),
+        Default = State.ForceMaxEcu,
+        Callback = function(v)
+            State.ForceMaxEcu = v
+            if v then
+                local veh = GetSeatedVeh()
+                if veh then
+                    veh:SetAttribute("EcuGain", 2.0)
+                    veh:SetAttribute("EcuFeedback", HttpService:JSONEncode({
+                        Afr = 1.0, Ign = 1.0, Air = 1.0, Tps = 1.0, Oil = 1.0, Fuel = 1.0
+                    }))
+                    Library:Notify("ECU", "EcuGain locked at ×2.00 MAX!", 3, "Success")
+                end
+            end
+        end
+    })
+    TuneBox:AddButton({
+        Text = T("Flash 2.0x Max ECU Map", "แฟลชกล่อง ECU สเตจสูงสุด (แรงม้าคูณ 2)"),
+        Func = function()
+            local veh, err = GetSeatedVeh()
+            if not veh then
+                Library:Notify("ECU", err or "Please sit in your vehicle first!", 3, "Warning")
+                return
+            end
+            EnsureBay(veh)
+            task.wait(0.3)
+            local file = EcuShared.stockFile()
+            for i = 1, 11 do
+                local t = (i - 1) / 10
+                file.Afr[i] = math.round((12.6 - t * 0.6) * 10) / 10
+                file.Air[i] = math.round((1.02 + t * 0.08) * 100) / 100
+                file.Fuel[i] = math.round((1.08 + t * 0.10) * 100) / 100
+                file.Ign[i] = file.Ign[i]
+                file.Tps[i] = math.round((0.98 + t * 0.20) * 100) / 100
+                file.Oil[i] = math.round((0.28 + t * 0.12) * 100) / 100
+            end
+            pcall(NetSeal.invoke, EcuRemote, "Send", veh, file)
+            task.wait(0.2)
+            -- Lock in 2.00x Maximum Gain
+            State.ForceMaxEcu = true
+            veh:SetAttribute("EcuGain", 2.0)
+            veh:SetAttribute("EcuFeedback", HttpService:JSONEncode({
+                Afr = 1.0, Ign = 1.0, Air = 1.0, Tps = 1.0, Oil = 1.0, Fuel = 1.0
+            }))
+            Library:Notify("ECU", "Flashed & Locked! EcuGain: ×2.00 (+100% MAX POWER!)", 5, "Success")
+        end
+    })
+    local shareCodeInput = ""
+    TuneBox:AddInput("RedeemEcuCode", {
+        Text = T("ECU Share Code", "โค้ดแชร์ ECU"),
+        Default = "",
+        Placeholder = "ABCD-EFGH",
+        Callback = function(v) shareCodeInput = v end
+    })
+    TuneBox:AddButton({
+        Text = T("Redeem ECU Code", "ใช้งานโค้ดแชร์ ECU"),
+        Func = function()
+            local veh, err = GetSeatedVeh()
+            if not veh then
+                Library:Notify("ECU", err or "Please sit in your vehicle first!", 3, "Warning")
+                return
+            end
+            EnsureBay(veh)
+            task.wait(0.3)
+            local ok, s1, s2 = pcall(NetSeal.invoke, EcuRemote, "Redeem", veh, shareCodeInput)
+            if ok and s1 then
+                Library:Notify("ECU", "Code redeemed! EcuGain: ×" .. tostring(veh:GetAttribute("EcuGain")), 4, "Success")
+            else
+                Library:Notify("ECU", s2 or "Invalid code", 4, "Error")
+            end
+        end
+    })
+    TuneBox:AddButton({
+        Text = T("Share Current ECU Tune (฿2,000)", "แชร์โค้ด ECU คันนี้ (฿2,000)"),
+        Func = function()
+            local veh, err = GetSeatedVeh()
+            if not veh then
+                Library:Notify("ECU", err or "Please sit in your vehicle first!", 3, "Warning")
+                return
+            end
+            EnsureBay(veh)
+            task.wait(0.3)
+            local ok, s1, s2, code = pcall(NetSeal.invoke, EcuRemote, "Share", veh)
+            if ok and s1 and code then
+                pcall(setclipboard, tostring(code))
+                Library:Notify("ECU", "Share Code: " .. tostring(code) .. " (Copied to clipboard!)", 6, "Success")
+            else
+                Library:Notify("ECU", s2 or "Failed to share tune", 4, "Warning")
+            end
+        end
+    })
+    TuneBox:AddButton({
+        Text = T("Teleport Vehicle to Dyno Room", "วาร์ปรถไปห้อง Dyno จูนรถ"),
+        Func = function()
+            local veh, err = GetSeatedVeh()
+            if not veh then
+                Library:Notify("Teleport", err or "Please sit in your vehicle first!", 3, "Warning")
+                return
+            end
+            EnsureBay(veh)
+            Library:Notify("Teleport", "Vehicle brought to AUTOWORKS Dyno!", 3, "Success")
+        end
+    })
+    local GarageBox = VehTab:AddRightGroupbox(T("Garage & Spawner", "โรงรถและเรียกรถ"), "key")
+    local vehicleNames = { "PCX160", "TYPER23", "VESPA_S", "FK8", "FK8T" }
+    local selectedVehicle = "PCX160"
+    pcall(function()
+        local ok, res = pcall(NetSeal.invoke, GarageRemote, "List")
+        if ok and type(res) == "table" and res.vehicles then
+            local list = {}
+            for _, v in ipairs(res.vehicles) do
+                if v.id then table.insert(list, v.id) end
+            end
+            if #list > 0 then vehicleNames = list end
+        end
+    end)
+    GarageBox:AddDropdown("SelectedVeh", {
+        Text = T("Select Vehicle", "เลือกรถในโรงรถ"),
+        Values = vehicleNames,
+        Default = vehicleNames[1] or "PCX160",
+        Callback = function(v) selectedVehicle = v end
+    })
+    GarageBox:AddButton({
+        Text = T("Spawn Selected Vehicle", "เรียกรถที่เลือก"),
+        Func = function()
+            pcall(NetSeal.invoke, GarageRemote, "Spawn", selectedVehicle)
+            Library:Notify("Garage", "Spawned: " .. selectedVehicle, 3, "Success")
+        end
+    })
+    GarageBox:AddButton({
+        Text = T("Despawn Vehicle", "เก็บรถเข้าโรงรถ"),
+        Func = function()
+            pcall(NetSeal.invoke, GarageRemote, "Despawn")
+            Library:Notify("Garage", "Vehicle despawned!", 3, "Info")
+        end
+    })
+    -- ── TAB 5: TELEPORTS ───────────────────────────────────
+    Window:AddTabSection(T("Teleports", "การเดินทางและวาร์ป"))
+    local TpTab = Window:AddTab(T("Teleports", "วาร์ป"), "map", T("Map locations & Workplaces", "จุดสำคัญรอบเมืองและที่ทำงาน"))
+    local LocBox = TpTab:AddLeftGroupbox(T("Official Landmarks", "จุดสำคัญรอบแผนที่"), "pin")
+    local teleportsList = {}
+    local teleportsData = {}
+    if MapConfig and MapConfig.TELEPORTS then
+        for _, tp in ipairs(MapConfig.TELEPORTS) do
+            local labelName = tp.th or tp.en or tp.id
+            table.insert(teleportsList, labelName)
+            teleportsData[labelName] = tp.foot or tp.car
+        end
+    end
+    local selectedTp = teleportsList[1] or "Drag strip (start line) + AUTOWORKS"
+    LocBox:AddDropdown("LandmarkTp", {
+        Text = T("Landmarks", "เลือกสถานที่"),
+        Values = teleportsList,
+        Default = selectedTp,
+        Callback = function(v) selectedTp = v end
+    })
+    LocBox:AddButton({
+        Text = T("Teleport to Landmark", "วาร์ปไปยังสถานที่ที่เลือก"),
+        Func = function()
+            local targetData = teleportsData[selectedTp]
+            if targetData then
+                local cf
+                if typeof(targetData) == "table" then
+                    cf = CFrame.new(table.unpack(targetData))
+                else
+                    cf = targetData
+                end
+                SafeTeleport(cf)
+                Library:Notify("Teleport", "Teleported to " .. selectedTp, 3, "Success")
+            end
+        end
+    })
+    local WorkTpBox = TpTab:AddRightGroupbox(T("Job Places & Lockers", "ที่ทำงานและตู้เปลี่ยนชุด"), "briefcase")
+    WorkTpBox:AddButton({
+        Text = T("Locker: Mechanic (AutoWorks)", "ตู้ชุดช่างซ่อมรถ"),
+        Func = function()
+            SafeTeleport(Vector3.new(148.9, 4.5, -192.6))
+        end
+    })
+    WorkTpBox:AddButton({
+        Text = T("Locker: Construction Builder", "ตู้ชุดช่างก่อสร้าง"),
+        Func = function()
+            SafeTeleport(Vector3.new(103.6, 4.0, 375.2))
+        end
+    })
+    WorkTpBox:AddButton({
+        Text = T("Locker: Food Delivery", "ตู้ชุดไรเดอร์ส่งอาหาร"),
+        Func = function()
+            SafeTeleport(Vector3.new(87.8, 4.5, -118))
+        end
+    })
+    WorkTpBox:AddButton({
+        Text = T("Locker: Courier Office (Soi 28)", "ตู้ชุดส่งพัสดุ (ซอย 28)"),
+        Func = function()
+            SafeTeleport(Vector3.new(-370.2, 4.0, -274.2))
+        end
+    })
+    WorkTpBox:AddButton({
+        Text = T("SIAM OIL Gas Station", "ปั๊มน้ำมันสยามออยล์"),
+        Func = function()
+            SafeTeleport(Vector3.new(122.6, 2.5, -396.9))
+        end
+    })
+    WorkTpBox:AddButton({
+        Text = T("1v1 Drag Race Lobby", "ห้องแข่งทางตรง 1v1"),
+        Func = function()
+            SafeTeleport(Vector3.new(-11988, 3.0, 866))
+        end
+    })
+    -- ── TAB 6: MISC & PLAYER ───────────────────────────────
+    Window:AddTabSection(T("Settings", "การตั้งค่าและตัวละคร"))
+    local MiscTab = Window:AddTab(T("Misc", "อื่นๆ"), "gear", T("Movement & Hub Settings", "การเคลื่อนที่และการตั้งค่า"))
+    local MoveBox = MiscTab:AddLeftGroupbox(T("Movement", "การเคลื่อนที่"), "walk")
+    MoveBox:AddToggle("WalkSpeedOn", {
+        Text = T("Enable WalkSpeed", "เปิดความเร็วการเดิน"),
+        Default = State.WalkSpeedOn,
+        Callback = function(v) State.WalkSpeedOn = v end
+    })
+    MoveBox:AddSlider("WalkSpeed", {
+        Text = T("Walk Speed", "ความเร็ว"),
+        Min = 16,
+        Max = 150,
+        Default = State.WalkSpeed,
+        Rounding = 0,
+        Callback = function(v) State.WalkSpeed = v end
+    })
+    MoveBox:AddToggle("InfJump", {
+        Text = T("Infinite Jump", "กระโดดได้ไม่จำกัด"),
+        Default = State.InfJump,
+        Callback = function(v) State.InfJump = v end
+    })
+    MoveBox:AddToggle("Noclip", {
+        Text = T("Noclip (Warning: Triggers Kick 267)", "เดินทะลุกำแพง (คำเตือน: ห้ามใช้ มีตรวจจับ 267)"),
+        Default = State.Noclip,
+        Callback = function(v) State.Noclip = v end
+    })
+    local SysBox = MiscTab:AddRightGroupbox(T("System & Hub", "ระบบและฮับ"), "shield")
+    SysBox:AddToggle("AntiAfk", {
+        Text = T("Anti-AFK", "ป้องกันหลุดจากการอยู่เฉยๆ"),
+        Default = State.AntiAfk,
+        Callback = function(v) State.AntiAfk = v end
+    })
+    SysBox:AddToggle("AutoReconnect", {
+        Text = T("Auto Reconnect", "เชื่อมต่อเซิร์ฟเวอร์ใหม่อัตโนมัติ"),
+        Default = State.AutoReconnect,
+        Callback = function(v) State.AutoReconnect = v end
+    })
+    SysBox:AddButton({
+        Text = T("Rejoin Server", "เข้าเซิร์ฟเวอร์เดิมใหม่"),
+        Func = function()
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        end
+    })
+    SysBox:AddButton({
+        Text = T("Copy Discord Link", "คัดลอกลิงก์ Discord"),
+        Style = "Primary",
+        Func = function()
+            local copy = setclipboard or toclipboard
+            if copy then copy(Config.Discord) end
+            Library:Notify("Discord", "Copied discord link to clipboard!", 3, "Info")
+        end
+    })
+    local AnonymizerBox = MiscTab:AddLeftGroupbox(T("Fake Name / Streamer Mode", "การพรางชื่อ / สตรีมเมอร์"), "user")
+    AnonymizerBox:AddToggle("FakeNameEnabled", {
+        Text = T("Enable Fake Name", "เปิดใช้งานชื่อปลอม"),
+        Description = T("Hides your real username and displays Honymoon Hub on nametags and HUDs", "ซ่อนชื่อจริงและแสดงชื่อ Honymoon Hub บนหัวตัวละครและหน้าจอ"),
+        Default = State.FakeNameEnabled,
+        Callback = function(v)
+            State.FakeNameEnabled = v
+            if v then
+                ApplyFakeName()
+                Library:Notify("Fake Name", "Fake Name active: " .. State.FakeName, 3, "Success")
+            else
+                local char = LocalPlayer.Character
+                local tag = char and char:FindFirstChild("Nametag", true)
+                local pn = tag and tag:FindFirstChild("PlayerName")
+                if pn then pn.Text = RealName end
+                Library:Notify("Fake Name", "Restored real name", 3, "Info")
+            end
+        end
+    })
+    AnonymizerBox:AddInput("FakeNameInput", {
+        Text = T("Custom Fake Name", "ชื่อปลอมที่ต้องการแสดง"),
+        Default = State.FakeName,
+        Placeholder = "Honymoon Hub",
+        Callback = function(v)
+            if v and v ~= "" then
+                State.FakeName = v
+                ApplyFakeName()
+            end
+        end
+    })
+    AnonymizerBox:AddButton({
+        Text = T("Apply Fake Name Now", "อัปเดตชื่อปลอมทันที"),
+        Func = function()
+            ApplyFakeName()
+            Library:Notify("Fake Name", "Applied: " .. State.FakeName, 3, "Success")
+        end
+    })
+    Window:AddSettingsTab()
+    pcall(MarioBanner.Ready)
+end
+-- Cleanup on unload
+getgenv().MahanakhonRacingUnload = function()
+    State.Alive = false
+    State.Kaitun = false
+    State.AutoMechanic = false
+    State.AutoBuilder = false
+    State.AutoDelivery = false
+end
+BuildInterface()
