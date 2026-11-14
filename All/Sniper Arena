@@ -2,6 +2,11 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
+if game.GameId ~= 9534705677 then
+    game:GetService("Players").LocalPlayer:Kick("Honymoon Hub: this script is for Sniper Arena only")
+    return
+end
+
 if not LPH_OBFUSCATED then
     local function Passthrough(fn) return fn end
     LPH_JIT, LPH_JIT_MAX, LPH_NO_VIRTUALIZE = Passthrough, Passthrough, Passthrough
@@ -32,6 +37,10 @@ local xDTaraZ = setmetatable({}, {
 xDTaraZ.Config = {
     UiSource = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/honymoonhubUi",
     Discord = "https://discord.gg/jA2qruQZN2",
+    UpdateLog = {
+        { "2026-11-15", "Auto Join Round: joins the next round from the lobby\nSkin pictures and rarity colors\nSmoother ESP, cleaner and faster menu\nAuto Sell never sells the guns you hold\nFixed Aimbot key and unloading" },
+        { "2026-11-15", "Classic Honymoon Hub UI is back\nBetter executor support\nImproved Combat & Movement" },
+    },
     SaveFolder = "Sniper Arena",
     LoadTimeout = 10,
     AlertTries = 20,
@@ -772,7 +781,7 @@ function xDTaraZ.Banner.Show()
         xDTaraZ.Banner.Art,
         xDTaraZ.Banner.Title,
         rule,
-        "   SNIPER ARENA  //  by xDSpyZ  //  discord.gg/jA2qruQZN2",
+        "   SNIPER ARENA  //  by xDTaraZ  //  discord.gg/FHVfmeSceA",
         "   executor: " .. tostring(executor) .. "   //   player: " .. LocalPlayer.Name,
         rule,
     }, "\n"))
@@ -2709,7 +2718,7 @@ end
 
 function xDTaraZ.UI.BuildMain(window)
     window:AddTabSection(T("Main", "หลัก"))
-    local tab = window:AddTab(T("Main", "หลัก"), "mushroom", T("Status and links", "สถานะและลิ้งก์"))
+    local tab = window:AddTab(T("Main", "หลัก"), "mushroom", T("Status and links", "สถานะและลิงก์"))
 
     local status = tab:AddLeftGroupbox(T("Status", "สถานะ"), "star")
     xDTaraZ.UI.Labels.Esp = status:AddParagraph({ Title = T("ESP", "ESP"), Content = "-" })
@@ -2732,7 +2741,7 @@ function xDTaraZ.UI.BuildMain(window)
         end
     end) })
 
-local logBox = tab:AddRightGroupbox(T("Update Log", "อัปเดตล่าสุด"), "bell")
+    local logBox = tab:AddRightGroupbox(T("Update Log", "อัปเดตล่าสุด"), "bell")
     for i = 1, math.min(2, #xDTaraZ.Config.UpdateLog) do
         local entry = xDTaraZ.Config.UpdateLog[i]
         logBox:AddParagraph({ Title = entry[1], Content = entry[2] })
@@ -3110,7 +3119,7 @@ local function BuildInterface()
     pcall(xDTaraZ.Banner.Step, "UI library")
     T = function(en, th) return Library:T(en, th) end
     local opened, err = pcall(Library.CreateWindow, Library, {
-        Title = "Honymoon HUB",
+        Title = "Honymoon Hub",
         SubTitle = "Sniper Arena by xDSpyZ",
         MenuKey = Enum.KeyCode.LeftControl,
         ConfigFolder = xDTaraZ.Config.SaveFolder,
