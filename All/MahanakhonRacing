@@ -11,7 +11,7 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 if game.GameId ~= 10771935715 then
-    game:GetService("Players").LocalPlayer:Kick("Mario Hub: this script is for MAHANAKHON RACING only")
+    game:GetService("Players").LocalPlayer:Kick("Honymoon Hub: this script is for MAHANAKHON RACING only")
     return
 end
 do
@@ -183,16 +183,21 @@ xDTaraZ.Config = {
     Discord = "https://discord.gg/jA2qruQZN2",
     UpdateLog = {
         { "2026-11-14", "MAHANAKHON RACING Full Auto Edition!\nAuto Mechanic, Auto Builder, Auto Delivery, Auto Quests, Auto Repair, Smart FarmCheck Solver & Teleports" },
+        { "2026-11-14b", "Kaitun rewrite: rotates Grab / Delivery / Courier / Mechanic / Builder, Plan+Locker job switching, group reward, FarmCheck stamp fix" },
     },
     UiSource = "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/honymoonhubUi",
     SaveFolder = "Mahanakhon Racing",
 }
 xDTaraZ.State = {
     Alive = true,
+    Gen = 0,                      -- cancel token: bumped when a farm toggle changes
+    AntiStuck = true,             -- slow ghost-through when stuck on props
     Status = "Idle",
     -- 1. KAITUN (ALL-IN-ONE)
     Kaitun = false,
-    FarmJobType = "Mechanic", -- "Mechanic", "Builder", "Delivery"
+    KaitunJobs = { Grab = true, Delivery = true, Courier = true, Mechanic = true, Builder = true },
+    KaitunSlice = 5,              -- minutes on one job before rotating to the next
+    KaitunMoveMode = "SimRide",   -- how to reach lockers / job boards: "SimRide" (ride when far), "SimWalk", "InstantTP"
     -- 2. MECHANIC FARM
     AutoMechanic = false,
     MechanicMoveMode = "SimWalk", -- "SimWalk" or "InstantTP"
@@ -207,11 +212,12 @@ xDTaraZ.State = {
     BuilderRideSpeed = 65,
     -- 4. DELIVERY FARM (RIDER)
     AutoDelivery = false,
-    DeliveryMode = "food",        -- "food", "parcel", "ride"
+    DeliveryMode = "food",        -- "food", "ride", "parcel", "grab"
     DeliveryMoveMode = "SimRide", -- "SimRide", "SimWalk", "InstantTP"
     DeliveryRideSpeed = 70,
     DeliveryWalkSpeed = 28,
     AutoAcceptOffer = true,
+    MinFee = 0,                   -- skip offers paying less than this (0 = accept everything)
     -- 5. REWARDS & UPGRADES
     AutoQuests = true,
     AutoGroupReward = true,
@@ -430,8 +436,124 @@ local function ComputeNavigationPath(startPos, endPos)
     }
 end
 
---- Realistic humanoid walking simulation (100% Server Anti-Cheat Safe, No Noclip, No Tween)
+-- ═══════════════════════════════════════
+-- CANCEL TOKEN + ANTI-STUCK
+-- State.Gen is bumped whenever a farm toggle is switched, every movement/step loop
+-- remembers the Gen it started with and quits the moment it changes.
+-- ═══════════════════════════════════════
+local function Cancelled(gen)
+    return (not State.Alive) or gen ~= State.Gen
+end
+
+-- Stop all movement immediately (humanoid + vehicle)
+local function StopMotion()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hum and hrp then
+        pcall(function() hum:MoveTo(hrp.Position) end)
+        local seat = hum.SeatPart
+        if seat then
+            if seat:IsA("VehicleSeat") then
+                seat.ThrottleFloat = 0
+                seat.SteerFloat = 0
+            end
+            local root = seat.AssemblyRootPart or seat
+            root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+            root.AssemblyAngularVelocity = Vector3.zero
+        end
+        if not State.WalkSpeedOn and hum.WalkSpeed > 20 then
+            hum.WalkSpeed = 16
+        end
+    end
+    CleanPathVisuals()
+end
+
+local function StopFarm()
+    State.Gen = State.Gen + 1
+    State.Status = "Idle"
+    StopMotion()
+end
+
+-- Slowly pass through whatever is blocking us. Only the blocking props are made non-colliding
+-- (NoCollisionConstraint), so we never fall through the road. Everything is removed again afterwards.
+local function GhostThrough(root, goalPos, gen, vehicle)
+    local char = LocalPlayer.Character
+    if not (char and root) then return end
+
+    local flatDir = Vector3.new(goalPos.X - root.Position.X, 0, goalPos.Z - root.Position.Z)
+    if flatDir.Magnitude < 0.5 then return end
+    flatDir = flatDir.Unit
+
+    local params = OverlapParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local ignore = { char }
+    if vehicle then table.insert(ignore, vehicle) end
+    params.FilterDescendantsInstances = ignore
+
+    local footY = root.Position.Y - (vehicle and 1.2 or 2.8)
+    local boxCf = CFrame.lookAt(root.Position + flatDir * 5, root.Position + flatDir * 10)
+    local nearby = Workspace:GetPartBoundsInBox(boxCf, Vector3.new(14, 12, 14), params)
+
+    local obstacles = {}
+    for _, p in ipairs(nearby) do
+        if p:IsA("BasePart") and not p:IsA("Terrain") and p.CanCollide
+            and p.Size.Magnitude < 250
+            and (p.Position.Y + p.Size.Y / 2) > footY + 0.7 then -- skip anything that is just the ground
+            table.insert(obstacles, p)
+        end
+    end
+    table.sort(obstacles, function(a, b)
+        return (a.Position - root.Position).Magnitude < (b.Position - root.Position).Magnitude
+    end)
+    while #obstacles > 10 do table.remove(obstacles) end
+    if #obstacles == 0 then return end
+
+    local mine = {}
+    local function collect(model)
+        for _, p in ipairs(model:GetDescendants()) do
+            if p:IsA("BasePart") and p.CanCollide and #mine < 70 then
+                table.insert(mine, p)
+            end
+        end
+    end
+    collect(char)
+    if vehicle then collect(vehicle) end
+
+    local folder = Instance.new("Folder")
+    folder.Name = "MarioPhase"
+    folder.Parent = Workspace
+    for _, o in ipairs(obstacles) do
+        for _, m in ipairs(mine) do
+            local c = Instance.new("NoCollisionConstraint")
+            c.Part0 = m
+            c.Part1 = o
+            c.Parent = folder
+        end
+    end
+
+    -- crawl forward slowly while the props are ghosted
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    local speed = vehicle and 20 or 12
+    local startPos = root.Position
+    local t0 = os.clock()
+    while os.clock() - t0 < 2.2 and not Cancelled(gen) do
+        if (Vector3.new(root.Position.X, 0, root.Position.Z) - Vector3.new(startPos.X, 0, startPos.Z)).Magnitude > 9 then break end
+        if vehicle then
+            root.AssemblyLinearVelocity = Vector3.new(flatDir.X * speed, root.AssemblyLinearVelocity.Y, flatDir.Z * speed)
+        elseif hum then
+            hum:MoveTo(root.Position + flatDir * 6)
+            hum.Jump = false
+        end
+        task.wait(0.03)
+    end
+    task.wait(0.25) -- let us clear the prop before collisions come back
+    pcall(function() folder:Destroy() end)
+end
+
+--- Realistic humanoid walking simulation with stuck recovery (hop/sidestep, then slow ghost-through)
 local function SimWalk(targetPos, speed, maxTimeout)
+    local gen = State.Gen
     local char = LocalPlayer.Character
     if not char then return false end
     local hum = char:FindFirstChildWhichIsA("Humanoid")
@@ -446,49 +568,79 @@ local function SimWalk(targetPos, speed, maxTimeout)
     local walkSpeed = speed or State.MechanicWalkSpeed or 26
     local prevSpeed = hum.WalkSpeed
     hum.WalkSpeed = walkSpeed
+    local function restore()
+        if not State.WalkSpeedOn then hum.WalkSpeed = prevSpeed end
+    end
 
     local targetV3 = typeof(targetPos) == "CFrame" and targetPos.Position or targetPos
     local flatDist = (Vector3.new(targetV3.X, hrp.Position.Y, targetV3.Z) - hrp.Position).Magnitude
 
     if flatDist <= 3.5 then
         CleanPathVisuals()
+        restore()
         return true
     end
 
-    -- Compute safe path around obstacles & scaffolding
     local waypoints = ComputeNavigationPath(hrp.Position, targetV3)
     RenderPathVisuals(waypoints)
 
     local startTime = os.clock()
     local timeout = maxTimeout or ((flatDist / walkSpeed) + 8.0)
 
-    for i, wp in ipairs(waypoints) do
-        if not State.Alive or os.clock() - startTime > timeout then break end
+    for _, wp in ipairs(waypoints) do
+        if Cancelled(gen) or os.clock() - startTime > timeout then break end
         local wpPos = wp.Position
         if wp.Action == Enum.PathWaypointAction.Jump then
             hum.Jump = true
         end
 
         local wpStart = os.clock()
+        local lastPos, lastCheck, stuck = hrp.Position, os.clock(), 0
         while (Vector3.new(wpPos.X, hrp.Position.Y, wpPos.Z) - hrp.Position).Magnitude > 3.0 do
-            if not State.Alive or os.clock() - wpStart > 3.5 then break end
+            if Cancelled(gen) or os.clock() - wpStart > 6.0 then break end
 
             local toWp = (wpPos - hrp.Position)
-            local hasObs, jump, steer = ScanRadarObstacles(hrp, toWp)
+            local _, jump, steer = ScanRadarObstacles(hrp, toWp)
             if jump then
                 hum.Jump = true
             end
-
             hum:MoveTo(wpPos + steer)
+
+            -- stuck detection: barely moved in 0.8s although we are walking
+            if os.clock() - lastCheck >= 0.8 then
+                local moved = (hrp.Position - lastPos).Magnitude
+                lastPos, lastCheck = hrp.Position, os.clock()
+                if moved < 1.5 then
+                    stuck = stuck + 1
+                    if stuck == 1 then
+                        -- hop and sidestep around it
+                        hum.Jump = true
+                        local fwd = Vector3.new(toWp.X, 0, toWp.Z)
+                        if fwd.Magnitude > 0.1 then
+                            local side = Vector3.new(-fwd.Unit.Z, 0, fwd.Unit.X) * (math.random() < 0.5 and 6 or -6)
+                            hum:MoveTo(hrp.Position + side + fwd.Unit * 3)
+                            task.wait(0.5)
+                        end
+                    else
+                        stuck = 0
+                        if State.AntiStuck then
+                            GhostThrough(hrp, wpPos, gen, nil)
+                        end
+                        wpStart = os.clock()
+                    end
+                else
+                    stuck = 0
+                end
+            end
             task.wait(0.05)
         end
     end
 
-    CleanPathVisuals()
-
-    if not State.WalkSpeedOn then
-        hum.WalkSpeed = prevSpeed
+    if Cancelled(gen) then
+        StopMotion()
     end
+    CleanPathVisuals()
+    restore()
 
     return (Vector3.new(targetV3.X, hrp.Position.Y, targetV3.Z) - hrp.Position).Magnitude <= 5.0
 end
@@ -565,8 +717,9 @@ local function EnsureMotorcycle()
     return myBike
 end
 
--- SimRide: Smooth MOTORCYCLE driving simulation via natural physics velocity (Zero Tween, Zero Noclip, Anti-Cheat Safe)
+-- SimRide: motorcycle driving via physics velocity, with stuck recovery (reverse + turn, then slow ghost-through)
 local function SimRide(targetPos, speed, maxTimeout)
+    local gen = State.Gen
     local char = LocalPlayer.Character
     if not char then return false end
     local hum = char:FindFirstChildWhichIsA("Humanoid")
@@ -590,33 +743,37 @@ local function SimRide(targetPos, speed, maxTimeout)
     local rideSpeed = speed or State.DeliveryRideSpeed or 65
     local flatDist = (Vector3.new(targetV3.X, chassis.Position.Y, targetV3.Z) - chassis.Position).Magnitude
 
-    if flatDist <= 10.0 then
-        chassis.AssemblyLinearVelocity = Vector3.zero
+    local function halt()
+        chassis.AssemblyLinearVelocity = Vector3.new(0, chassis.AssemblyLinearVelocity.Y, 0)
         chassis.AssemblyAngularVelocity = Vector3.zero
         if seat and seat:IsA("VehicleSeat") then
             seat.ThrottleFloat = 0
             seat.SteerFloat = 0
         end
         CleanPathVisuals()
+    end
+
+    if flatDist <= 10.0 then
+        halt()
         return true
     end
 
-    -- Compute navigation waypoints along official city roads
     local waypoints = ComputeNavigationPath(chassis.Position, targetV3)
     RenderPathVisuals(waypoints)
 
     local startTime = os.clock()
     local timeout = maxTimeout or ((flatDist / rideSpeed) + 18.0)
 
-    for i, wp in ipairs(waypoints) do
-        if not State.Alive or os.clock() - startTime > timeout then break end
+    for _, wp in ipairs(waypoints) do
+        if Cancelled(gen) or os.clock() - startTime > timeout then break end
         if not hum.Sit then break end
 
         local wpPos = wp.Position
         local wpStart = os.clock()
+        local lastPos, lastCheck, stuck = chassis.Position, os.clock(), 0
 
         while (Vector3.new(wpPos.X, chassis.Position.Y, wpPos.Z) - chassis.Position).Magnitude > 9.0 do
-            if not State.Alive or os.clock() - wpStart > 6.0 then break end
+            if Cancelled(gen) or os.clock() - wpStart > 8.0 then break end
             if not hum.Sit then break end
 
             local currentPos = chassis.Position
@@ -625,41 +782,55 @@ local function SimRide(targetPos, speed, maxTimeout)
             if flatDir.Magnitude < 0.2 then break end
             local moveUnit = flatDir.Unit
 
-            -- Radar Obstacle Avoidance for motorcycle
             local steerOffset = Vector3.zero
             if State.RadarAvoidance then
                 local hasObs, _, steer = ScanRadarObstacles(chassis, moveUnit * 10.0)
-                if hasObs then
-                    steerOffset = steer
-                end
+                if hasObs then steerOffset = steer end
             end
-
             local finalDir = (moveUnit + steerOffset * 0.4).Unit
 
-            -- Steer & Rotate towards waypoint (ROTATION ONLY - preserves position so server anti-cheat doesn't flag tween!)
+            -- rotate only (position untouched) and drive with natural velocity
             chassis.CFrame = CFrame.lookAt(currentPos, currentPos + Vector3.new(finalDir.X, 0, finalDir.Z))
-
-            -- Apply natural linear physics velocity (Server recognizes legitimate client network ownership velocity!)
-            local targetVel = Vector3.new(finalDir.X * rideSpeed, chassis.AssemblyLinearVelocity.Y, finalDir.Z * rideSpeed)
-            chassis.AssemblyLinearVelocity = targetVel
+            chassis.AssemblyLinearVelocity = Vector3.new(finalDir.X * rideSpeed, chassis.AssemblyLinearVelocity.Y, finalDir.Z * rideSpeed)
             chassis.AssemblyAngularVelocity = Vector3.zero
-
             if seat and seat:IsA("VehicleSeat") then
                 seat.ThrottleFloat = 1.0
+            end
+
+            -- stuck detection: barely moved in 0.9s although we are at full throttle
+            if os.clock() - lastCheck >= 0.9 then
+                local moved = (chassis.Position - lastPos).Magnitude
+                lastPos, lastCheck = chassis.Position, os.clock()
+                if moved < 2.0 then
+                    stuck = stuck + 1
+                    if stuck == 1 then
+                        -- back up while turning away from the obstacle
+                        local side = Vector3.new(-moveUnit.Z, 0, moveUnit.X) * (math.random() < 0.5 and 1 or -1)
+                        local backDir = (-moveUnit + side * 0.8).Unit
+                        local t0 = os.clock()
+                        while os.clock() - t0 < 0.7 and not Cancelled(gen) do
+                            chassis.CFrame = CFrame.lookAt(chassis.Position, chassis.Position + Vector3.new(moveUnit.X, 0, moveUnit.Z))
+                            chassis.AssemblyLinearVelocity = Vector3.new(backDir.X * 14, chassis.AssemblyLinearVelocity.Y, backDir.Z * 14)
+                            task.wait(0.04)
+                        end
+                    else
+                        stuck = 0
+                        halt()
+                        if State.AntiStuck then
+                            GhostThrough(chassis, wpPos, gen, bike)
+                        end
+                        wpStart = os.clock()
+                    end
+                else
+                    stuck = 0
+                end
             end
 
             task.wait(0.04)
         end
     end
 
-    -- Stop motorcycle at destination
-    chassis.AssemblyLinearVelocity = Vector3.zero
-    chassis.AssemblyAngularVelocity = Vector3.zero
-    if seat and seat:IsA("VehicleSeat") then
-        seat.ThrottleFloat = 0
-        seat.SteerFloat = 0
-    end
-    CleanPathVisuals()
+    halt()
 
     local finalFlatDist = (Vector3.new(targetV3.X, chassis.Position.Y, targetV3.Z) - chassis.Position).Magnitude
     return finalFlatDist <= 18.0
@@ -829,269 +1000,482 @@ pcall(function()
         end)
     end
 end)
--- Fast job uniform switch via Lockers (Anti-Cheat Safe: Navigates via SimWalk / SimRide, Zero TP)
-local function SwitchJob(targetJob)
-    local currentJob = LocalPlayer:GetAttribute("Job")
-    local currentUniform = LocalPlayer:GetAttribute("Uniform")
-    if currentJob == targetJob and currentUniform == targetJob then
-        return true
+-- ═══════════════════════════════════════
+-- JOB HELPERS (Plan -> Locker -> Uniform)
+-- ═══════════════════════════════════════
+-- NetSeal.invoke returns (serverSuccess, data, extra). Call() hides the pcall and gives back (success, data, extra)
+local function Call(remote, ...)
+    local ok, success, data, extra = pcall(NetSeal.invoke, remote, ...)
+    if not ok then return false, nil, nil end
+    return success and true or false, data, extra
+end
+
+local function GetJob()
+    return LocalPlayer:GetAttribute("Job") or JobShared.DEFAULT
+end
+
+local function SetStatus(text)
+    State.Status = text
+end
+
+local function InstPos(inst)
+    if not inst then return nil end
+    if inst:IsA("BasePart") then return inst.Position end
+    if inst:IsA("Model") then return inst:GetPivot().Position end
+    local p = inst:FindFirstChildWhichIsA("BasePart", true)
+    return p and p.Position or nil
+end
+
+-- Walk (or ride when far) to a place. Used for lockers / job boards / work stations
+local function Travel(pos, mode)
+    mode = mode or State.KaitunMoveMode
+    if mode == "InstantTP" then
+        return SafeTeleport(pos + Vector3.new(0, 1.5, 0))
     end
-
-    local lockerFolder = Workspace:FindFirstChild("Map") and Workspace.Map:FindFirstChild("JobLockers")
-    if not lockerFolder then return false end
-
-    -- Safe helper to travel to locker cabinet via SimWalk/SimRide and equip uniform
-    local function TravelAndEquip(lockerObj)
-        if not lockerObj then return false end
-        local cab = lockerObj:FindFirstChild("Cabinet")
-        local prompt = cab and cab:FindFirstChild("LockerPrompt")
-        if not (cab and prompt) then return false end
-
-        local targetPos = (cab.CFrame * CFrame.new(0, 0, 2.5)).Position
-        local hrp = SafeRoot()
-        if not hrp then return false end
-
-        local dist = (Vector3.new(targetPos.X, hrp.Position.Y, targetPos.Z) - hrp.Position).Magnitude
-
-        -- If far (> 75 studs), ride motorcycle near entrance first, then walk in
-        if dist > 75 then
-            local parkPos = (cab.CFrame * CFrame.new(0, 0, 15)).Position
-            SimRide(parkPos, 65)
+    local hrp = SafeRoot()
+    if not hrp then return false end
+    local flat = (Vector3.new(pos.X, hrp.Position.Y, pos.Z) - hrp.Position).Magnitude
+    if mode == "SimRide" and flat > 75 then
+        SimRide(pos, State.DeliveryRideSpeed)
+        task.wait(0.3)
+        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+        if hum and hum.Sit then
+            hum.Sit = false
             task.wait(0.3)
-            local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildWhichIsA("Humanoid")
-            if hum and hum.Sit then
-                hum.Sit = false
-                task.wait(0.3)
+        end
+    end
+    return SimWalk(pos, State.MechanicWalkSpeed)
+end
+
+local function FindLocker(jobId)
+    for _, inst in ipairs(CollectionService:GetTagged("JobLocker")) do
+        if inst:GetAttribute("Job") == jobId then
+            return inst
+        end
+    end
+    local map = Workspace:FindFirstChild("Map")
+    local folder = map and map:FindFirstChild("JobLockers")
+    return folder and folder:FindFirstChild("Locker_" .. jobId) or nil
+end
+
+-- Walk to a job locker and press its prompt (toggles uniform on/off)
+local function UseLocker(jobId)
+    local locker = FindLocker(jobId)
+    if not locker then return false end
+    local prompt = locker:FindFirstChild("LockerPrompt", true)
+    if not prompt then return false end
+    local part = prompt.Parent
+    if not (part and part:IsA("BasePart")) then
+        part = locker:FindFirstChildWhichIsA("BasePart", true)
+    end
+    if not part then return false end
+
+    local gen = State.Gen
+    for attempt = 1, 2 do
+        if Cancelled(gen) then return false end
+        local stand = attempt == 1 and (part.CFrame * CFrame.new(0, 0, 2.5)).Position or part.Position
+        Travel(stand)
+        task.wait(0.2)
+        local hrp = SafeRoot()
+        if Cancelled(gen) then return false end
+        if hrp and (hrp.Position - part.Position).Magnitude <= 14 then
+            pcall(fireproximityprompt, prompt)
+            task.wait(0.9)
+            return true
+        end
+    end
+    return false
+end
+
+-- Switch to a job: take off the old uniform, Plan the new job, put on the new uniform
+local function SwitchJob(target)
+    if GetJob() == target then return true end
+    local def = JobShared.job(target)
+    local gen = State.Gen
+    for _ = 1, 3 do
+        if Cancelled(gen) then return false end
+        local cur = GetJob()
+        if cur == target then return true end
+
+        -- 1. take off whatever uniform we are wearing
+        if cur ~= JobShared.DEFAULT then
+            if (LocalPlayer:GetAttribute("DeliveryState") or "Off") ~= "Off" then
+                Call(DeliveryRemote, "Stop")
+                task.wait(0.4)
+            end
+            local curDef = JobShared.job(cur)
+            if curDef and not curDef.noLocker then
+                SetStatus("Taking off uniform: " .. cur)
+                UseLocker(cur)
             end
         end
 
-        -- Walk directly to the locker cabinet
-        SimWalk(targetPos, 28)
-        task.wait(0.2)
-
-        -- Activate locker prompt within legitimate proximity
-        hrp = SafeRoot()
-        if hrp and (hrp.Position - cab.Position).Magnitude <= 12 then
-            pcall(fireproximityprompt, prompt, 0)
-            task.wait(0.8)
-            return true
+        -- 2. mark the new job as planned
+        if LocalPlayer:GetAttribute("PlannedJob") ~= target then
+            Call(JobRemote, "Plan", target)
+            task.wait(0.5)
         end
-        return false
-    end
+        if Cancelled(gen) then return false end
+        if GetJob() == target then return true end
 
-    -- 1. If currently wearing another uniform, strip it off first
-    if currentJob and currentJob ~= "Citizen" and currentUniform and currentUniform ~= targetJob then
-        local currentLocker = lockerFolder:FindFirstChild("Locker_" .. currentJob)
-        if currentLocker then
-            TravelAndEquip(currentLocker)
+        -- 3. put on the new uniform at its locker
+        if def and not def.noLocker then
+            SetStatus("Putting on uniform: " .. target)
+            UseLocker(target)
         end
+        task.wait(0.5)
     end
-
-    -- 2. Travel to the target job locker and wear the uniform
-    local targetLocker = lockerFolder:FindFirstChild("Locker_" .. targetJob)
-    if targetLocker then
-        TravelAndEquip(targetLocker)
-    end
-
-    return LocalPlayer:GetAttribute("Job") == targetJob
+    return GetJob() == target
 end
+
 -- ═══════════════════════════════════════
 -- AUTO FARM LOOPS
 -- ═══════════════════════════════════════
--- Mechanic Auto Farm
-local function RunMechanicStep()
-    local currentJob = LocalPlayer:GetAttribute("Job")
-    if currentJob ~= "Mechanic" then
-        SwitchJob("Mechanic")
-        return
+local WORK_FALLBACK = {
+    Mechanic_Board = Vector3.new(154.5, 3.42, -194),
+    Builder_Board = Vector3.new(98, 2.6, 374),
+    Builder_Mixer = Vector3.new(136, 2.6, 390.5),
+}
+
+local function ReadWorkTask()
+    local raw = LocalPlayer:GetAttribute("WorkTask")
+    if type(raw) == "string" and raw ~= "" then
+        local ok, t = pcall(HttpService.JSONDecode, HttpService, raw)
+        if ok and type(t) == "table" then return t end
     end
-    local taskRaw = LocalPlayer:GetAttribute("WorkTask")
-    local taskObj = nil
-    if type(taskRaw) == "string" and taskRaw ~= "" then
-        pcall(function() taskObj = HttpService:JSONDecode(taskRaw) end)
-    end
-    -- No task: check cooldown and Take task from Board
-    if not taskObj then
-        local nextAt = LocalPlayer:GetAttribute("WorkNextAt") or 0
-        local waitLeft = nextAt - Workspace:GetServerTimeNow()
-        if waitLeft <= 0 then
-            local boardPos = Vector3.new(154.5, 3.42, -194)
-            if State.MechanicMoveMode == "SimWalk" then
-                SimWalk(boardPos, State.MechanicWalkSpeed)
-            else
-                SafeTeleport(boardPos + Vector3.new(0, 1.0, 0))
-            end
-            task.wait(0.2)
-            pcall(NetSeal.invoke, WorkRemote, "Take", nil)
-            task.wait(0.4)
-        end
-        return
-    end
-    -- Step: "go" -> Walk to station and invoke "Do"
-    if taskObj.step == "go" then
-        local station = taskObj.station
-        local stationPos = JobPlaces and JobPlaces:GetAttribute("Mechanic_" .. station)
-        if typeof(stationPos) == "Vector3" then
-            if State.MechanicMoveMode == "SimWalk" then
-                SimWalk(stationPos, State.MechanicWalkSpeed)
-            else
-                SafeTeleport(stationPos + Vector3.new(0, 1.5, 0))
-            end
-            task.wait(0.2)
-            pcall(NetSeal.invoke, WorkRemote, "Do", station)
-            task.wait(0.4)
-        end
-        return
-    end
-    -- Step: "doing" -> Wait MIN_TIME (3.2s) and invoke "Done"
-    if taskObj.step == "doing" then
-        task.wait(State.MechanicDelay)
-        pcall(NetSeal.invoke, WorkRemote, "Done", 1)
-        task.wait(0.5)
-        return
-    end
+    return nil
 end
--- Builder Auto Farm
-local function RunBuilderStep()
-    local currentJob = LocalPlayer:GetAttribute("Job")
-    if currentJob ~= "Builder" then
-        SwitchJob("Builder")
-        return
-    end
-    local taskRaw = LocalPlayer:GetAttribute("WorkTask")
-    local taskObj = nil
-    if type(taskRaw) == "string" and taskRaw ~= "" then
-        pcall(function() taskObj = HttpService:JSONDecode(taskRaw) end)
-    end
 
-    local function DoBuilderMove(pos)
-        if State.BuilderMoveMode == "SimRide" then
-            SimRide(pos, State.BuilderRideSpeed)
-        elseif State.BuilderMoveMode == "SimWalk" then
-            SimWalk(pos, State.BuilderWalkSpeed)
-        else
-            SafeTeleport(pos + Vector3.new(0, 1.0, 0))
+-- Position of a work station: JobPlaces attribute -> tagged WorkStation -> hardcoded fallback
+local function StationPos(job, id)
+    local v = JobPlaces and JobPlaces:GetAttribute(job .. "_" .. id)
+    if typeof(v) == "Vector3" then return v end
+    for _, inst in ipairs(CollectionService:GetTagged("WorkStation")) do
+        if inst:GetAttribute("StationId") == id then
+            local j = inst:GetAttribute("Job")
+            if j == nil or j == job then
+                local p = InstPos(inst)
+                if p then return p end
+            end
         end
     end
+    return WORK_FALLBACK[job .. "_" .. id]
+end
 
-    -- No task: check cooldown and Take task from Board
-    if not taskObj then
-        local nextAt = LocalPlayer:GetAttribute("WorkNextAt") or 0
-        local waitLeft = nextAt - Workspace:GetServerTimeNow()
-        if waitLeft <= 0 then
-            local boardPos = Vector3.new(98, 2.6, 374)
-            DoBuilderMove(boardPos)
-            task.wait(0.2)
-            pcall(NetSeal.invoke, WorkRemote, "Take", nil)
-            task.wait(0.4)
-        end
-        return
+-- Mechanic + Builder share the same flow: Take (board) -> go (Do at station) -> doing (wait) -> Done
+local function RunWorkStep(job, moveMode)
+    if GetJob() ~= job then
+        SetStatus("Switching job -> " .. job)
+        return SwitchJob(job)
     end
-    -- Step: "carry" -> Pile to Mixer
-    if taskObj.step == "carry" then
-        local mixerPos = Vector3.new(136, 2.6, 390.5)
-        DoBuilderMove(mixerPos)
+    local taskObj = ReadWorkTask()
+    local gen = State.Gen
+    local function Move(pos)
+        Travel(pos, moveMode)
         task.wait(0.2)
-        pcall(NetSeal.invoke, WorkRemote, "Done", 1)
-        task.wait(0.5)
-        return
+        return not Cancelled(gen)
     end
-    -- Step: "go" -> Walk/Ride to station
-    if taskObj.step == "go" then
-        local station = taskObj.station
-        local stationPos = JobPlaces and JobPlaces:GetAttribute("Builder_" .. station)
-        if typeof(stationPos) == "Vector3" then
-            DoBuilderMove(stationPos)
-            task.wait(0.2)
-            pcall(NetSeal.invoke, WorkRemote, "Do", station)
+
+    -- No task: wait for cooldown, then Take from the Job Board
+    if not taskObj then
+        local waitLeft = (LocalPlayer:GetAttribute("WorkNextAt") or 0) - Workspace:GetServerTimeNow()
+        if waitLeft > 0 then
+            SetStatus(string.format("%s: next task in %ds", job, math.ceil(waitLeft)))
+            task.wait(math.min(waitLeft, 1))
+            return true
+        end
+        local board = StationPos(job, "Board")
+        if board then
+            SetStatus(job .. ": taking a task")
+            if not Move(board) then return true end
+            Call(WorkRemote, "Take", nil)
             task.wait(0.4)
         end
-        return
+        return true
     end
-    -- Step: "doing" -> Wait MIN_TIME and invoke "Done"
+
+    -- Builder: carry cement from the pile to the mixer
+    if taskObj.step == "carry" then
+        local pos = StationPos(job, taskObj.station or "Mixer") or StationPos(job, "Mixer")
+        if pos then
+            SetStatus(job .. ": carrying")
+            if not Move(pos) then return true end
+            Call(WorkRemote, "Done", 1)
+            task.wait(0.5)
+        end
+        return true
+    end
+
+    -- Go to the station and start the minigame
+    if taskObj.step == "go" then
+        local pos = StationPos(job, taskObj.station)
+        if pos then
+            SetStatus(job .. ": " .. tostring(taskObj.station))
+            if not Move(pos) then return true end
+            Call(WorkRemote, "Do", taskObj.station)
+            task.wait(0.4)
+        end
+        return true
+    end
+
+    -- Minigame running: wait the minimum time then finish with a perfect score
     if taskObj.step == "doing" then
-        task.wait(State.MechanicDelay)
-        pcall(NetSeal.invoke, WorkRemote, "Done", 1)
+        SetStatus(job .. ": working")
+        task.wait(math.max(State.MechanicDelay, (JobShared.MIN_TIME or 3) + 0.2))
+        if Cancelled(gen) then return true end
+        Call(WorkRemote, "Done", 1)
         task.wait(0.5)
-        return
+        return true
     end
+    return true
 end
--- Delivery Auto Farm (Rider Delivery)
-local function RunDeliveryStep()
-    local currentJob = LocalPlayer:GetAttribute("Job")
-    if currentJob ~= "Delivery" then
-        SwitchJob("Delivery")
-        return
+
+-- Delivery family: Delivery (food / ride), Courier (parcel), Grab (own-bike rides)
+local DELIVERY_JOBS = {
+    Delivery = { job = "Delivery", mode = "food" },
+    Courier = { job = "Courier", mode = "parcel" },
+    Grab = { job = "Grab", mode = "grab" },
+}
+
+local function DeliveryMove(target)
+    if State.DeliveryMoveMode == "SimRide" then
+        return SimRide(target, State.DeliveryRideSpeed)
+    elseif State.DeliveryMoveMode == "SimWalk" then
+        return SimWalk(target, State.DeliveryWalkSpeed)
     end
+    return SafeTeleport(target + Vector3.new(0, 1.5, 0))
+end
+
+-- Go to the target, wait for the server to mark us "arrived" (stopped inside the radius), then confirm
+local function DeliveryGoAndConfirm(target, label)
+    local gen = State.Gen
+    for _ = 1, 3 do
+        if Cancelled(gen) then return false end
+        SetStatus(label)
+        DeliveryMove(target)
+        local t0 = os.clock()
+        while os.clock() - t0 < 3.5 do
+            if Cancelled(gen) then return false end
+            if LocalPlayer:GetAttribute("DeliveryArrived") == true then
+                Call(DeliveryRemote, "Confirm", nil)
+                task.wait(0.6)
+                return true
+            end
+            task.wait(0.2)
+        end
+    end
+    return false
+end
+
+local function RunDeliveryStep(jobName, mode)
+    local gen = State.Gen
+    local info = DELIVERY_JOBS[jobName] or DELIVERY_JOBS.Delivery
+    mode = mode or info.mode
+
+    if GetJob() ~= info.job then
+        SetStatus("Switching job -> " .. info.job)
+        return SwitchJob(info.job)
+    end
+
     local delState = LocalPlayer:GetAttribute("DeliveryState") or "Off"
+    local jobObj = DeliveryShared.decode(LocalPlayer:GetAttribute("DeliveryJob"))
+
     if delState == "Off" then
-        pcall(NetSeal.invoke, DeliveryRemote, "Start", State.DeliveryMode)
+        -- Courier parcels are started at the depot
+        if info.job == "Courier" and JobShared.DEPOT then
+            local depot = Vector3.new(JobShared.DEPOT.x, (JobShared.DEPOT.y or 0) + 2, JobShared.DEPOT.z)
+            local hrp = SafeRoot()
+            if hrp and (Vector3.new(depot.X, hrp.Position.Y, depot.Z) - hrp.Position).Magnitude > 40 then
+                SetStatus("Courier: going to the depot")
+                DeliveryMove(depot)
+            end
+        end
+        if Cancelled(gen) then return true end
+        SetStatus(info.job .. ": starting (" .. mode .. ")")
+        Call(DeliveryRemote, "Start", mode)
+        task.wait(1)
+        return true
+    end
+
+    if delState == "Searching" then
+        SetStatus(info.job .. ": searching for orders")
+        task.wait(0.5)
+        return true
+    end
+
+    if delState == "Offer" then
+        if State.MinFee > 0 and jobObj and (jobObj.fee or 0) < State.MinFee then
+            Call(DeliveryRemote, "Skip", nil)
+            task.wait(0.5)
+        elseif State.AutoAcceptOffer then
+            Call(DeliveryRemote, "Accept", nil)
+            task.wait(0.5)
+        end
+        return true
+    end
+
+    if not jobObj then
+        task.wait(0.3)
+        return true
+    end
+
+    if delState == "ToShop" or delState == "ToHome" then
+        local target = DeliveryShared.target(delState, jobObj)
+        if target then
+            local label = (delState == "ToShop" and info.job .. ": pick-up" or info.job .. ": drop-off")
+            if jobObj.fee then label = label .. string.format(" (฿%s)", GameShared.formatNumber(jobObj.fee)) end
+            DeliveryGoAndConfirm(target + Vector3.new(0, 2, 0), label)
+        end
+    end
+    return true
+end
+
+-- ═══════════════════════════════════════
+-- KAITUN (ALL-IN-ONE SCHEDULER)
+-- Rotates through every money job, finishing the current order/task before switching.
+-- ═══════════════════════════════════════
+local KAITUN_ORDER = { "Grab", "Delivery", "Courier", "Mechanic", "Builder" }
+local Kaitun = {
+    current = nil,
+    sliceStart = os.clock(),
+    blocked = {},      -- job -> os.clock() until which it is skipped (failed to switch)
+    failures = {},     -- job -> consecutive switch failures
+    startCash = nil,
+    activeJob = nil,   -- job we are currently clocked in as (rotation timer starts from here)
+}
+xDTaraZ.Kaitun = Kaitun
+
+local function KaitunList()
+    local list = {}
+    for _, j in ipairs(KAITUN_ORDER) do
+        local blockedUntil = Kaitun.blocked[j]
+        if State.KaitunJobs[j] and not (blockedUntil and os.clock() < blockedUntil) then
+            table.insert(list, j)
+        end
+    end
+    return list
+end
+
+-- Safe to leave the current job: no task in progress / no order being carried
+local function KaitunSafePoint(job)
+    if job == "Mechanic" or job == "Builder" then
+        return ReadWorkTask() == nil
+    end
+    local st = LocalPlayer:GetAttribute("DeliveryState") or "Off"
+    return st == "Off" or st == "Searching" or st == "Offer"
+end
+
+local function RunActivity(job)
+    if job == "Mechanic" or job == "Builder" then
+        return RunWorkStep(job, State.KaitunMoveMode)
+    end
+    local mode = nil
+    if job == "Delivery" then
+        mode = (State.DeliveryMode == "ride") and "ride" or "food"
+    end
+    return RunDeliveryStep(job, mode)
+end
+
+local function RunKaitunStep()
+    if not SafeRoot() then
         task.wait(1)
         return
     end
-    if delState == "Offer" and State.AutoAcceptOffer then
-        pcall(NetSeal.invoke, DeliveryRemote, "Accept", nil)
-        task.wait(0.5)
-        return
-    end
-    local jobRaw = LocalPlayer:GetAttribute("DeliveryJob")
-    local jobObj = nil
-    if type(jobRaw) == "string" and jobRaw ~= "" then
-        pcall(function() jobObj = HttpService:JSONDecode(jobRaw) end)
-    end
-    if not jobObj then return end
-
-    local function DoDeliveryMove(target)
-        if State.DeliveryMoveMode == "SimRide" then
-            SimRide(target, State.DeliveryRideSpeed)
-        elseif State.DeliveryMoveMode == "SimWalk" then
-            SimWalk(target, State.DeliveryWalkSpeed)
-        else
-            SafeTeleport(target + Vector3.new(0, 1.5, 0))
-        end
+    if not Kaitun.startCash then
+        Kaitun.startCash = LocalPlayer:GetAttribute("Cash") or 0
     end
 
-    if delState == "ToShop" and jobObj.shop then
-        local target = Vector3.new(jobObj.shop.x, (jobObj.shop.y or 1) + 2, jobObj.shop.z)
-        DoDeliveryMove(target)
-        task.wait(0.4)
-        for _ = 1, 6 do
-            if LocalPlayer:GetAttribute("DeliveryArrived") == true then
-                pcall(NetSeal.invoke, DeliveryRemote, "Confirm", nil)
-                task.wait(0.5)
-                break
-            end
-            task.wait(0.3)
-        end
+    local list = KaitunList()
+    if #list == 0 then
+        SetStatus("Kaitun: no job selected")
+        task.wait(1)
         return
     end
-    if delState == "ToHome" and jobObj.home then
-        local target = Vector3.new(jobObj.home.x, (jobObj.home.y or 1) + 2, jobObj.home.z)
-        DoDeliveryMove(target)
-        task.wait(0.4)
-        for _ = 1, 6 do
-            if LocalPlayer:GetAttribute("DeliveryArrived") == true then
-                pcall(NetSeal.invoke, DeliveryRemote, "Confirm", nil)
-                task.wait(0.5)
-                break
-            end
-            task.wait(0.3)
+
+    local idx = table.find(list, Kaitun.current)
+    if not idx then
+        -- current job removed / blocked: leave any delivery cleanly, then move on
+        if Kaitun.current and (LocalPlayer:GetAttribute("DeliveryState") or "Off") ~= "Off" and KaitunSafePoint(Kaitun.current) then
+            Call(DeliveryRemote, "Stop")
         end
-        return
+        Kaitun.current = list[1]
+        Kaitun.sliceStart = os.clock()
+        Kaitun.activeJob = nil
+        idx = 1
+    elseif #list > 1 and os.clock() - Kaitun.sliceStart >= State.KaitunSlice * 60 and KaitunSafePoint(Kaitun.current) then
+        if (LocalPlayer:GetAttribute("DeliveryState") or "Off") ~= "Off" then
+            Call(DeliveryRemote, "Stop")
+            task.wait(0.4)
+        end
+        Kaitun.current = list[idx % #list + 1]
+        Kaitun.sliceStart = os.clock()
+        Kaitun.activeJob = nil
+    end
+
+    local job = Kaitun.current
+    local before = GetJob()
+    -- the rotation timer starts once we are actually in the job (not while walking to the locker)
+    if before == job and Kaitun.activeJob ~= job then
+        Kaitun.activeJob = job
+        Kaitun.sliceStart = os.clock()
+    end
+    RunActivity(job)
+
+    -- Could not become this job a few times in a row: skip it for 3 minutes
+    if before ~= job and GetJob() ~= job then
+        Kaitun.failures[job] = (Kaitun.failures[job] or 0) + 1
+        if Kaitun.failures[job] >= 3 then
+            Kaitun.failures[job] = 0
+            Kaitun.blocked[job] = os.clock() + 180
+            warn("[Honymoon Hub] Kaitun: could not switch to " .. job .. ", skipping for 3 min")
+        end
+    else
+        Kaitun.failures[job] = 0
     end
 end
+
 -- Master Farm Worker Thread
 task.spawn(function()
     while State.Alive do
-        if State.Kaitun or State.AutoMechanic then
-            pcall(RunMechanicStep)
-        elseif State.AutoBuilder then
-            pcall(RunBuilderStep)
-        elseif State.AutoDelivery then
-            pcall(RunDeliveryStep)
+        local ok, err = pcall(function()
+            if State.Kaitun then
+                RunKaitunStep()
+            elseif State.AutoMechanic then
+                RunWorkStep("Mechanic", State.MechanicMoveMode)
+            elseif State.AutoBuilder then
+                RunWorkStep("Builder", State.BuilderMoveMode)
+            elseif State.AutoDelivery then
+                local m = State.DeliveryMode
+                local jobName = (m == "parcel" and "Courier") or (m == "grab" and "Grab") or "Delivery"
+                RunDeliveryStep(jobName, m)
+            else
+                SetStatus("Idle")
+            end
+        end)
+        if not ok then
+            warn("[Honymoon Hub] farm loop error: " .. tostring(err))
+            task.wait(1)
         end
-        task.wait(0.5)
+        task.wait(0.4)
+    end
+end)
+
+-- Group reward (one time ฿10,000): claim automatically when we are in the group
+local function ClaimGroupReward()
+    local ok, data = Call(GroupRewardRemote, "Status")
+    if ok and type(data) == "table" and data.inGroup and not data.claimed then
+        local success, msg = Call(GroupRewardRemote, "Claim")
+        return success, msg
+    end
+    return false, (type(data) == "table" and (data.claimed and "Already claimed" or "Not in the group")) or "No status"
+end
+task.spawn(function()
+    task.wait(6)
+    while State.Alive do
+        if State.AutoGroupReward then
+            pcall(ClaimGroupReward)
+        end
+        task.wait(300)
     end
 end)
 -- Auto Quests Claimer
@@ -1246,17 +1630,41 @@ local function SolveFarmCheckGui(promptText, candidateButtons)
     end
     return nil, nil, "unknown"
 end
+-- The real client answers with (id, stamp). stamp = { c = checksum(id), t = seconds since last input, i = real input }.
+-- Without a valid stamp the server treats the answer as a bot. Hidden options (h == true) are honeypots, "g" challenges are ghosts.
+local function FarmCheckStamp(id)
+    id = tostring(id)
+    local sum = 7
+    for i = 1, #id do
+        sum = (sum * 31 + string.byte(id, i) * i) % 65521
+    end
+    return { c = sum, t = math.floor(math.random(40, 160)) / 100, i = true }
+end
+
+local function PickVisibleOptions(data)
+    local list = {}
+    for _, opt in ipairs(data.options or {}) do
+        if opt.h ~= true then
+            table.insert(list, opt)
+        end
+    end
+    return list
+end
+
+local LastFarmCheckId = nil
 -- Layer 1: Server Remote Event Interceptor
 if FarmCheckRemote then
     FarmCheckRemote.OnClientEvent:Connect(function(action, data)
-        if action == "Show" and type(data) == "table" and State.AutoFarmCheck then
+        if action == "Show" and type(data) == "table" and not data.g and State.AutoFarmCheck then
+            if data.id ~= nil and data.id == LastFarmCheckId then return end
+            LastFarmCheckId = data.id
             task.spawn(function()
                 warn("[Honymoon Hub] FarmCheck anti-bot challenge received: " .. tostring(data.prompt))
-                task.wait(1.5) -- Human-like delay
-                local bestId, bestEmoji, matchKind = SolveFarmCheck(data)
+                task.wait(math.random(12, 22) / 10) -- Human-like delay
+                local bestId, bestEmoji, matchKind = SolveFarmCheck({ prompt = data.prompt, options = PickVisibleOptions(data) })
                 if bestId then
-                    pcall(NetSeal.invoke, FarmCheckAnswerRemote, bestId)
-                    warn(string.format("[Honymoon Hub] FarmCheck automatically solved with: %s (matched via %s)", tostring(bestEmoji), tostring(matchKind)))
+                    local ok, success, msg = pcall(NetSeal.invoke, FarmCheckAnswerRemote, bestId, FarmCheckStamp(bestId))
+                    warn(string.format("[Honymoon Hub] FarmCheck answered %s (matched via %s) -> %s", tostring(bestEmoji), tostring(matchKind), tostring(ok and success)))
                 else
                     warn("[Honymoon Hub] FarmCheck requires player response: " .. tostring(data.prompt))
                     pcall(function()
@@ -1268,66 +1676,69 @@ if FarmCheckRemote then
                     end)
                 end
             end)
+        elseif action == "Hide" then
+            LastFarmCheckId = nil
         end
     end)
 end
--- Layer 2: PlayerGui GUI Watcher & Auto Clicker
+-- Layer 2: PlayerGui watcher (fallback). Only acts if the challenge is still open after Layer 1 had its chance,
+-- and only ever clicks visible buttons with a real mouse click.
 task.spawn(function()
     local VirtualInputManager = game:GetService("VirtualInputManager")
+    local openSince = nil
     while State.Alive do
         if State.AutoFarmCheck then
             pcall(function()
                 local pg = LocalPlayer:FindFirstChild("PlayerGui")
                 local fcGui = pg and pg:FindFirstChild("FarmCheck")
-                if fcGui and fcGui.Enabled then
-                    local dimFrame = fcGui:FindFirstChild("Frame")
-                    if dimFrame and dimFrame.Visible then
-                        local panel = dimFrame:FindFirstChild("Frame")
-                        if panel then
-                            local promptText = ""
-                            local grid = nil
-                            for _, child in ipairs(panel:GetChildren()) do
-                                if child:IsA("TextLabel") and child.Text ~= "" and not child.Text:find("เช็กว่าเป็นคนจริง") and not child.Text:find("กันโปรฟาร์ม") then
-                                    promptText = child.Text
-                                elseif child:IsA("Frame") and child:FindFirstChildWhichIsA("UIGridLayout") then
-                                    grid = child
-                                end
-                            end
-                            if promptText ~= "" and grid then
-                                local candidateButtons = {}
-                                for _, btn in ipairs(grid:GetChildren()) do
-                                    if btn:IsA("TextButton") then
-                                        local emojiLabel = btn:FindFirstChildWhichIsA("TextLabel")
-                                        local emoji = emojiLabel and emojiLabel.Text
-                                        if emoji and emoji ~= "" then
-                                            table.insert(candidateButtons, { button = btn, emoji = emoji })
-                                        end
-                                    end
-                                end
-                                if #candidateButtons > 0 then
-                                    local targetBtn, targetEmoji, matchKind = SolveFarmCheckGui(promptText, candidateButtons)
-                                    if targetBtn then
-                                        warn(string.format("[Honymoon Hub] FarmCheck GUI Watcher: Solved %s via %s. Clicking...", tostring(targetEmoji), tostring(matchKind)))
-                                        task.wait(1.2)
-                                        if getconnections then
-                                            for _, c in ipairs(getconnections(targetBtn.Activated)) do c:Fire() end
-                                        end
-                                        local absPos = targetBtn.AbsolutePosition
-                                        local absSize = targetBtn.AbsoluteSize
-                                        local cx = absPos.X + absSize.X / 2
-                                        local cy = absPos.Y + absSize.Y / 2
-                                        pcall(function()
-                                            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
-                                            task.wait(0.05)
-                                            VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
-                                        end)
-                                        task.wait(3)
-                                    end
-                                end
-                            end
+                local dimFrame = fcGui and fcGui.Enabled and fcGui:FindFirstChild("Frame")
+                if not (dimFrame and dimFrame.Visible) then
+                    openSince = nil
+                    return
+                end
+                openSince = openSince or os.clock()
+                if os.clock() - openSince < 4 then return end
+
+                local panel = dimFrame:FindFirstChild("Frame")
+                if not panel then return end
+                local promptText = ""
+                local grid = nil
+                for _, child in ipairs(panel:GetChildren()) do
+                    if child:IsA("TextLabel") and child.Text ~= "" and not child.Text:find("เช็กว่าเป็นคนจริง") and not child.Text:find("กันโปรฟาร์ม") then
+                        promptText = child.Text
+                    elseif child:IsA("Frame") and child:FindFirstChildWhichIsA("UIGridLayout") then
+                        grid = child
+                    end
+                end
+                if promptText == "" or not grid then return end
+
+                local candidateButtons = {}
+                for _, btn in ipairs(grid:GetChildren()) do
+                    if btn:IsA("TextButton") and btn.Visible then
+                        local emojiLabel = btn:FindFirstChildWhichIsA("TextLabel")
+                        local emoji = emojiLabel and emojiLabel.Text
+                        if emoji and emoji ~= "" then
+                            table.insert(candidateButtons, { button = btn, emoji = emoji })
                         end
                     end
                 end
+                if #candidateButtons == 0 then return end
+
+                local targetBtn, targetEmoji, matchKind = SolveFarmCheckGui(promptText, candidateButtons)
+                if not targetBtn then return end
+                warn(string.format("[Honymoon Hub] FarmCheck GUI Watcher: Solved %s via %s. Clicking...", tostring(targetEmoji), tostring(matchKind)))
+                task.wait(math.random(8, 16) / 10)
+                local absPos = targetBtn.AbsolutePosition
+                local absSize = targetBtn.AbsoluteSize
+                local insetY = fcGui.IgnoreGuiInset and 0 or game:GetService("GuiService"):GetGuiInset().Y
+                local cx = absPos.X + absSize.X / 2
+                local cy = absPos.Y + absSize.Y / 2 + insetY
+                VirtualInputManager:SendMouseMoveEvent(cx, cy, game)
+                task.wait(0.08)
+                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                task.wait(0.06)
+                VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+                task.wait(3)
             end)
         end
         task.wait(1.5)
@@ -1336,8 +1747,9 @@ end)
 -- ═══════════════════════════════════════
 -- MOVEMENT & ANTI-AFK
 -- ═══════════════════════════════════════
+local Connections = {}
 -- Noclip Loop
-RunService.Stepped:Connect(function()
+table.insert(Connections, RunService.Stepped:Connect(function()
     if State.Noclip and Character then
         for _, part in ipairs(Character:GetDescendants()) do
             if part:IsA("BasePart") and part.CanCollide then
@@ -1345,32 +1757,32 @@ RunService.Stepped:Connect(function()
             end
         end
     end
-end)
+end))
 
-RunService.Heartbeat:Connect(function()
+table.insert(Connections, RunService.Heartbeat:Connect(function()
     if State.WalkSpeedOn and Character then
         local hum = Character:FindFirstChildOfClass("Humanoid")
         if hum and hum.WalkSpeed ~= State.WalkSpeed then
             hum.WalkSpeed = State.WalkSpeed
         end
     end
-end)
+end))
 
-UserInputService.JumpRequest:Connect(function()
+table.insert(Connections, UserInputService.JumpRequest:Connect(function()
     if State.InfJump and Character then
         local hum = Character:FindFirstChildOfClass("Humanoid")
         if hum then
             hum:ChangeState(Enum.HumanoidStateType.Jumping)
         end
     end
-end)
+end))
 
-LocalPlayer.Idled:Connect(function()
+table.insert(Connections, LocalPlayer.Idled:Connect(function()
     if State.AntiAfk then
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new())
     end
-end)
+end))
 -- Auto Reconnect
 pcall(function()
     local CoreGui = game:GetService("CoreGui")
@@ -1435,23 +1847,72 @@ local function BuildInterface()
     local KaitunTab = Window:AddTab(T("Kaitun", "ไก่ตัน"), "crown", T("Auto progression & all-in-one farm", "ฟาร์มอัตโนมัติทุกอย่างแบบครบวงจร"))
     local KaitunBox = KaitunTab:AddLeftGroupbox(T("Master Kaitun", "ระบบไก่ตันหลัก"), "star")
     KaitunBox:AddToggle("Kaitun", {
-        Text = T("Master Kaitun (Fast Cash)", "เปิดไก่ตันฟาร์มเงินอัตโนมัติ"),
-        Description = T("Automatically clocks in as Mechanic, completes bay repairs, earns ฿4,500+/min", "เปลี่ยนชุดช่าง ซ่อมรถในช่อง และรับเงินอัตโนมัติทันที"),
+        Text = T("Master Kaitun (Do Every Money Job)", "เปิดไก่ตัน ทำทุกงานที่ได้เงินอัตโนมัติ"),
+        Description = T("Rotates Grab, Delivery, Courier, Mechanic & Builder, finishing each order before switching. Also claims quests, group reward and answers FarmCheck.", "สลับทำ Grab, ไรเดอร์, ส่งพัสดุ, ช่าง, ก่อสร้าง จบออเดอร์ก่อนเปลี่ยนงานเสมอ พร้อมรับเควสต์ รางวัลกลุ่ม และตอบ FarmCheck"),
         Default = State.Kaitun,
         Callback = function(v)
             State.Kaitun = v
+            State.Gen = State.Gen + 1
+            if not v then StopFarm() end
             if v then
-                State.AutoMechanic = true
+                Kaitun.startCash = LocalPlayer:GetAttribute("Cash") or 0
+                Kaitun.sliceStart = os.clock()
                 Library:Notify("Kaitun", "Master Kaitun Activated!", 3, "Success")
             end
         end
     }):AddKeyPicker("KaitunKey", { Default = "None", Mode = "Toggle" })
+    local KaitunJobBox = KaitunTab:AddLeftGroupbox(T("Jobs in Rotation", "งานที่จะสลับทำ"), "briefcase")
+    local KAITUN_UI = {
+        { "Grab", "Grab / Rider (฿700-2,500 per trip)", "Grab ขี่รถรับผู้โดยสาร (฿700-2,500 ต่อเที่ยว)" },
+        { "Delivery", "Food Delivery & Rides", "ไรเดอร์ส่งอาหาร / รับส่งคน" },
+        { "Courier", "Courier (parcels)", "ส่งพัสดุ" },
+        { "Mechanic", "Mechanic (bay repairs)", "ช่างซ่อมรถ" },
+        { "Builder", "Construction Builder", "ช่างก่อสร้าง" },
+    }
+    for _, row in ipairs(KAITUN_UI) do
+        local jobId = row[1]
+        KaitunJobBox:AddToggle("KaitunJob_" .. jobId, {
+            Text = T(row[2], row[3]),
+            Default = State.KaitunJobs[jobId],
+            Callback = function(v) State.KaitunJobs[jobId] = v end
+        })
+    end
+    KaitunJobBox:AddToggle("AntiStuck", {
+        Text = T("Anti-Stuck (slowly pass through props)", "กันติด (ทะลุของที่ขวางแบบช้าๆ)"),
+        Description = T("When stuck: hop/back up first, then ghost only the blocking props for ~2s. Turn off if you get kicked (267).", "เมื่อติด: กระโดด/ถอยก่อน แล้วค่อยทะลุเฉพาะของที่ขวางประมาณ 2 วิ ถ้าโดนเตะ (267) ให้ปิด"),
+        Default = State.AntiStuck,
+        Callback = function(v) State.AntiStuck = v end
+    })
+    KaitunJobBox:AddSlider("KaitunSlice", {
+        Text = T("Minutes per job before rotating", "นาทีต่อหนึ่งงานก่อนสลับ"),
+        Min = 1,
+        Max = 30,
+        Default = State.KaitunSlice,
+        Rounding = 0,
+        Callback = function(v) State.KaitunSlice = v end
+    })
+    KaitunJobBox:AddDropdown("KaitunMoveMode", {
+        Text = T("Travel to lockers / boards", "การเดินทางไปตู้เปลี่ยนชุด / กระดานงาน"),
+        Values = { "SimRide", "SimWalk", "InstantTP" },
+        Default = State.KaitunMoveMode,
+        Callback = function(v) State.KaitunMoveMode = v end
+    })
+    KaitunJobBox:AddSlider("MinFee", {
+        Text = T("Skip delivery offers below ฿", "ข้ามออเดอร์ที่ได้ต่ำกว่า ฿"),
+        Min = 0,
+        Max = 1000,
+        Default = State.MinFee,
+        Rounding = 0,
+        Callback = function(v) State.MinFee = v end
+    })
     local StatusBox = KaitunTab:AddRightGroupbox(T("Player Status", "สถานะผู้เล่น"), "info")
     local CashLabel = StatusBox:AddLabel("Cash: ฿-")
     local JobLabel = StatusBox:AddLabel("Job: -")
     local WorkCountLabel = StatusBox:AddLabel("Completed Tasks: -")
     local DeliveryLabel = StatusBox:AddLabel("Delivery Rating: -")
     local CooldownLabel = StatusBox:AddLabel("Next Task: Ready")
+    local ActionLabel = StatusBox:AddLabel("Action: Idle")
+    local ProfitLabel = StatusBox:AddLabel("Kaitun Profit: ฿0")
     task.spawn(function()
         while State.Alive do
             pcall(function()
@@ -1466,6 +1927,9 @@ local function BuildInterface()
                 WorkCountLabel:SetText(string.format("Completed Tasks: %s", tostring(workCount)))
                 DeliveryLabel:SetText(string.format("Delivery Rating: %.1f ★", delRating))
                 CooldownLabel:SetText(waitSec > 0 and string.format("Next Task: in %ds", waitSec) or "Next Task: Ready ✓")
+                ActionLabel:SetText("Action: " .. tostring(State.Status))
+                local gained = Kaitun.startCash and (cash - Kaitun.startCash) or 0
+                ProfitLabel:SetText(string.format("Kaitun Profit: ฿%s", GameShared.formatNumber(math.max(gained, 0))))
             end)
             task.wait(1)
         end
@@ -1478,7 +1942,11 @@ local function BuildInterface()
         Text = T("Auto Mechanic (Bay Repairs)", "ออโต้ฟาร์มช่างซ่อมรถ"),
         Description = T("Simulates realistic walking between Bay1-3 with radar & 3D path", "เดินไปช่องซ่อม 1-3 ด้วย SimWalk พร้อมเรดาร์หลบสิ่งกีดขวาง"),
         Default = State.AutoMechanic,
-        Callback = function(v) State.AutoMechanic = v end
+        Callback = function(v)
+            State.AutoMechanic = v
+            State.Gen = State.Gen + 1
+            if not v then StopFarm() end
+        end
     })
     MecBox:AddDropdown("MechanicMoveMode", {
         Text = T("Movement Mode", "รูปแบบการเคลื่อนที่"),
@@ -1534,7 +2002,11 @@ local function BuildInterface()
         Text = T("Auto Construction Builder", "ออโต้ฟาร์มช่างก่อสร้าง"),
         Description = T("Carries cement, mixes, stacks bricks and paints walls via SimWalk/SimRide", "ยกปูน โม่ปูน ก่ออิฐ และทาสีอัตโนมัติด้วย SimWalk/SimRide"),
         Default = State.AutoBuilder,
-        Callback = function(v) State.AutoBuilder = v end
+        Callback = function(v)
+            State.AutoBuilder = v
+            State.Gen = State.Gen + 1
+            if not v then StopFarm() end
+        end
     })
     BuildBox:AddDropdown("BuilderMoveMode", {
         Text = T("Movement Mode", "รูปแบบการเคลื่อนที่"),
@@ -1575,16 +2047,17 @@ local function BuildInterface()
         Text = T("Auto Delivery / Rider", "ออโต้ไรเดอร์ส่งของ"),
         Description = T("Takes food/parcel orders, rides to shops & homes smoothly with ground lock", "รับออเดอร์ ขี่รถส่งถึงร้านและบ้านลูกค้าเสมือนจริง ไม่ตกแมพ"),
         Default = State.AutoDelivery,
-        Callback = function(v) State.AutoDelivery = v end
+        Callback = function(v)
+            State.AutoDelivery = v
+            State.Gen = State.Gen + 1
+            if not v then StopFarm() end
+        end
     })
     DelBox:AddDropdown("DeliveryMode", {
         Text = T("Delivery Type", "ประเภทงานส่ง"),
-        Values = { "food", "parcel", "ride" },
+        Values = { "food", "ride", "parcel", "grab" },
         Default = State.DeliveryMode,
-        Callback = function(v)
-            State.DeliveryMode = v
-            pcall(NetSeal.invoke, DeliveryRemote, "Start", v)
-        end
+        Callback = function(v) State.DeliveryMode = v end
     })
     DelBox:AddDropdown("DeliveryMoveMode", {
         Text = T("Movement Mode", "รูปแบบการเคลื่อนที่"),
@@ -1646,13 +2119,18 @@ local function BuildInterface()
     GroupBox:AddButton({
         Text = T("Claim Group Reward (฿1,000+)", "กดรับเงินกลุ่ม Roblox"),
         Func = function()
-            local ok, success, msg = pcall(NetSeal.invoke, GroupRewardRemote, "Claim")
-            if ok and success then
-                Library:Notify("Group Reward", msg or "Claimed successfully!", 5, "Success")
+            local success, msg = ClaimGroupReward()
+            if success then
+                Library:Notify("Group Reward", tostring(msg or "Claimed successfully!"), 5, "Success")
             else
-                Library:Notify("Group Reward", msg or "Already claimed or not in group!", 5, "Warning")
+                Library:Notify("Group Reward", tostring(msg or "Already claimed or not in group!"), 5, "Warning")
             end
         end
+    })
+    GroupBox:AddToggle("AutoGroupReward", {
+        Text = T("Auto Claim Group Reward", "รับรางวัลกลุ่มอัตโนมัติ"),
+        Default = State.AutoGroupReward,
+        Callback = function(v) State.AutoGroupReward = v end
     })
     GroupBox:AddToggle("AutoFarmCheck", {
         Text = T("Anti-Bot Auto Solver", "แกะบอตเช็กอัตโนมัติ (FarmCheck)"),
@@ -2068,9 +2546,17 @@ end
 -- Cleanup on unload
 getgenv().MahanakhonRacingUnload = function()
     State.Alive = false
+    State.Gen = State.Gen + 1
+    pcall(StopMotion)
+    pcall(function()
+        local f = Workspace:FindFirstChild("MarioPhase")
+        if f then f:Destroy() end
+    end)
     State.Kaitun = false
     State.AutoMechanic = false
     State.AutoBuilder = false
     State.AutoDelivery = false
+    for _, c in ipairs(Connections) do pcall(function() c:Disconnect() end) end
+    CleanPathVisuals()
 end
 BuildInterface()
