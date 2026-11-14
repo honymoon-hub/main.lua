@@ -20,13 +20,13 @@ local Library = {
 }
 
 local Config = {
-    GuiAttribute = "MarioHubUI",
-    Root = "mariohub",
+    GuiAttribute = "HonymoonHubUI",
+    Root = "Honymoonhub",
     AssetDir = "mariohub/assets",
     ConfigRoot = "mariohub/configs",
     DefaultAssets = {
         logo = "https://raw.githubusercontent.com/honymoon-hub/main.lua/main/IMG_0309.png",
-        logo_halloween = "https://raw.githubusercontent.com/xDTaraZz/Roblox-Scripts/main/logo_halloween.png",
+        logo_halloween = "https://raw.githubusercontent.com/honymoon-hub/main.lua/main/IMG_0309.png",
     },
     SeasonTheme = "Halloween",
     FontDir = "mariohub/fonts",
