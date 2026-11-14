@@ -3111,7 +3111,7 @@ local function BuildInterface()
     T = function(en, th) return Library:T(en, th) end
     local opened, err = pcall(Library.CreateWindow, Library, {
         Title = "Honymoon HUB",
-        SubTitle = "Sniper Arena by SPY",
+        SubTitle = "Sniper Arena by xDSpyZ",
         MenuKey = Enum.KeyCode.LeftControl,
         ConfigFolder = xDTaraZ.Config.SaveFolder,
         Language = "Auto",
