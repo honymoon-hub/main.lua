@@ -10,6 +10,7 @@ local DISCORD = "discord.gg/jA2qruQZN2"
 local GAMES = {
     [9534705677] = "Sniper Arena",
     [10771935715] = "MahanakhonRacing",
+    [10769315427] = "Steal A Pet And Ride it",
 }
 
 local function Notify(text, detail)
