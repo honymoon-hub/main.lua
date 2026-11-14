@@ -785,7 +785,7 @@ function xDTaraZ.Banner.Step(label)
     banner.Done = math.min(banner.Done + 1, banner.Total)
     local filled = math.floor(banner.Done / banner.Total * 20 + 0.5)
     local bar = string.rep("#", filled) .. string.rep(".", 20 - filled)
-    xDTaraZ.Banner.Print(string.format("[Mario Hub] [%s] %3d%%  %-24s +%dms",
+    xDTaraZ.Banner.Print(string.format("[Honymoon Hub] [%s] %3d%%  %-24s +%dms",
         bar, math.floor(banner.Done / banner.Total * 100), label, math.floor((now - banner.Last) * 1000)))
     banner.Last = now
 end
