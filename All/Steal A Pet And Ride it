@@ -1,0 +1,3032 @@
+--[[
+    Honymoon Hub - Steal A Pet And Ride It
+    Official Honymoon Hub UI Template Build
+    100% Safe (Read-Only / Ban-Free)
+    Built with Honymoon Hub UI Library, LookCache 3D Engine, & Live Incubator Tracker.
+--]]
+
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+if game.GameId ~= 10769315427 then
+    game:GetService("Players").LocalPlayer:Kick("Honymoon Hub: this script is for Steal A Pet And Ride It only")
+    return
+end
+
+local MarioBanner = {
+    Print = print,
+    Started = os.clock(),
+    Last = os.clock(),
+    Done = 0,
+    Total = 4,
+}
+
+do
+    local ok, renv = pcall(getrenv)
+    if ok and type(renv) == "table" and type(renv.print) == "function" then
+        MarioBanner.Print = renv.print
+    end
+end
+
+function MarioBanner.Show()
+    local ok, executor = pcall(identifyexecutor)
+    if not ok or type(executor) ~= "string" then executor = "Unknown" end
+    local rule = string.rep("=", 54)
+    MarioBanner.Print(table.concat({
+        "",
+        [[
+                                                                        -+#*-@*-   #%--+%#-
+                                        --++**%%%%%%%%%%%%%%***+--    +#%*+ -+*%%% #*-++*@-
+                                  -+*%%%%%%%****+++++++++++***%%%%%%*+*#%*+-+*%%#*-##-+*@%
+                             -+*%%%%**++---------+++++++++++----++++*%%%%#@*+@*-  #%- -+*#%-
+                          +*%%%*+-------++++++++++++++++++++++++++++--++*%#@#@- -@%- ---++%%%*
+                      -+%%%+--   --+++++++++++++++++++++++++++++++++++++--++%#@##%- -++-+***-
+                    +%#%*-    ---++++++++****%%%%%%%%%%%%%%%*****+++++++++++--*@+ --++--++*%%%
+                 -*##*+-  ------++++***%%%%***+++----------+++***%%***+++++++++*#%*--++-++++%%%
+               -*#%*+--------+++**%%%%*++--                     ---+*****++++++++*%#*+--**%*
+             -*#%++---+++++++**%%%*+--                                -++*%**++++-++%#%*
+            *#%++++++++++++*%%%*+-                            ---- --    --+*%*+++++++*##*
+          +##++++++++++++*%%*+-                -          ----    ----       -*%%*++++++*%#
+         %@*-+++++++++**%%*-   -+*************-  -     ------ -+**%%%%%*****+- -+%%++++++++%#
+       -##+-+++++++++*%%*-    *%*++-----+++++%#*--     ----- +%*+----+++++**%#*  -+%*+++++++
+      -@%-+++++++++**%*-     %#+     -----+++*%@+---     ----#%+-  ----++++++*@%-- -*%+++++++
+     +@*---+++++++*%%+      +#*- -------+++++*%@*--       - -#*+----+++++++++*%@+--  +%*++++++
+    +@*-- -++++++*%%-     - %%+--------++++++*%@+--         -#*+--++++++++++++*#%-- - +%*++++++
+   -@*-- --+++++*%*-     - +#*------+++++++++*%@*------------#*++-++++++++++++*%@+-- - -%*++++++
+   ##-- --+++++*%*-      - %%+----+++++++++++*%@+-          -#*++-++++++++++++**#%-- ----%*++++++
+  *@-+--++++++*%%-      - +#*--+-++++++++++++*%@%**+++++++++*#*++-+++++++++++++*%#+--  --+%+++++++
+ -@*++-++++++*%%-       - %%+--++++++++++++++****************+----+++++++++++++**#*--   --*%++++++
+ %#-+--++++++*#+       - +#*--+++++++++++++++++------------------+++++++++++++++*%#+--   --%++++++
+-@*++-++++++*%%-       - %%+--++++++++++++++++++++++++++++++++++++++++++++++++++**@*-- - --**++++++
+*@+++-++++++*%+       - -#*--++++++++++++++++++++++++++++++++++++++++++++++++++++*%#---   -+%+++++++
+##-++-++++++*%-       - %#+--++++++++++++++++++++++++++++++++++++++++++++++++++++**@*--   --%+++++++
+@%-+++++++++*%-        -#*--++++++++++++++++++++++++++++++++++++++++++++++++++++++*##---  --**+++++++
+@%++++++++++*%-      - *#+--+++++++++++++++*%******************%%+++++++++++++++++**@+-- ---**+++++++
+@%++++++++++*%-       -#%- -++++++++++++++*%%%%%%%%***%%%%%%%%%%**++++++++++++++++**#%------*+-+++++++
+@%+*++++++++*%-       +#+--+++++++++++++++*%%%@################***+-+++++++++++++++*%#+-- --%+-+++++++
+%#+*+++++++++%+     - %%+--++++++++++++++**%*##+*++++++++++++*@***+-+++++++++++++++**#%----+*--+++++++
++@+++++++++++**      -#*--+++++++++++++++***%@*++-------------%%++++++++++++++++++++*%#++--*+--+++++++
+-@%+*+++++++++%-     *#+--+++++++++++++++***%@++-           - *%++++++++++++++++++++**#*+-+%--+++++++
+ *@+*+++++++++*%-    %%++++++++++++++++++***##++-           - +#*+++++++++++++++++****#%++%+--++++++
+ -@%+*+++++++++**    *#**%*****+++++++++****@%++---------------#*+++++++++++*****%%%%%#%+%+--+++++++
+  +@*+*+++++++++%*-   *###%%%%%%%**********%@*--               *%+++++****%%%%%%%%%###%+%*  -+++++++
+   %@+**+++++++++**-    +*%%##%%%%%%%%%###%#@***+**********++++*@%*%%%%%%%%%%%%#%%%*+-+%*- -+++++++
+    ##+**++++++***#%***+  -+*%####%%%*******+++****++++++***++*+******%%%%##@#%*+-  +*%%++**++++++
+    -##+**+****+++++***#%***+++++++--**%%%%%++%%%%%%%**%%%%%%*++%%%%%%%****+-+*****##*----+*%%%***
+      ##*%#*+------*%*+-----+**%**####--- -#@@%-   -#@@* ---+@#@*------++*%%%+----+++**------+%#%##
+    -+*@#%++------+%+------*@+-   -@@#     *@@+     #@@+    -@@@-    ---   -*@*-+++-++**----++**%@%*
+  -*%%*++*+++-----+*++-----+@*     %%%-    +@@+    -#@@+    -@@#     *#%    -@#-++++++*+---++***%*+**
+  %@+--++**+++-----**+------#@-            -@@* -   %@@-    +@@%          -+@@*-+++++**----++**%**+
+  -##%++++**++-----+*+------*@*     --+-   -#@#   - -+- --  %@@* -  -%%-   -#@+-+++++*+---++*+%**+++
+    +##*++***++----+**+------##- -- *@@-    *@@#-         -%@@@-    -*%- -  +@*-++++**----+*+*%**+
+      +@#*+*%+++----+%+------*@+    -@@%+++*#@%#@#%*****%#@@%#@+---        +@@+-++++%+---++**%***##
+      +@*-++**++----+**+------#@%%%%#@%#####%*--+*%%####%%*+-+%#######%%%##@#+-++++**----+*+%**++@
+     +@*--++**+++**%%%%+-------*%%%**++++++++************+***+++++****%%%**+----+++%#%%**+++%*++
+     @%---+++***#@#@@@@+-+++++***%%%%##############################%%%%%****+++++++%@@@#@#*%**+
+    *@------++**%%%@%%@#%%%#####%%%%****+++++++++---------+++++++******%%%%####%###@%%@%%%**++
+    %@--++*%%###%%*+  -*#@@#%*****+++++++++++++++++++++++++++++++++++++++****%##@%+-  +*%%####%*
+    -%####%%*+--         -*%#@#%**++++++++++++++++++++++++++++++++++++***%%###%+-         --+*%####%-
+      -+--                  -+*%###%%******++++++++++++++++++++*****%%####%*+                   ----
+                                --+*%%####%%%%*************%%%%%####%%*+--
+                                      --+**%%################%%**+--
+]],
+    Title = [[
+ _   _   ___   _   _ __   __ __  __   ___    ___   _   _    _   _  _   _  ____  
+| | | | / _ \ | \ | |\ \ / /|  \/  | / _ \  / _ \ | \ | |  | | | || | | || __ ) 
+| |_| || | | ||  \| | \ V / | |\/| || | | || | | ||  \| |  | |_| || | | ||  _ \ 
+|  _  || |_| || |\  |  | |  | |  | || |_| || |_| || |\  |  |  _  || |_| || |_) |
+|_| |_| \___/ |_| \_|  |_|  |_|  |_| \___/  \___/ |_| \_|  |_| |_| \___/ |____/
+]],
+        rule,
+        "   Steal A Pet And Ride It  //  by xDSpyZ  //  discord.gg/jA2qruQZN2",
+        "   executor: " .. executor .. "   //   player: " .. game:GetService("Players").LocalPlayer.Name,
+        rule,
+    }, "\n"))
+end
+
+function MarioBanner.Step(name)
+    MarioBanner.Done = MarioBanner.Done + 1
+    local now = os.clock()
+    MarioBanner.Print(string.format("[%d/%d] %-24s (%.2fs, total %.2fs)",
+        MarioBanner.Done, MarioBanner.Total, name, now - MarioBanner.Last, now - MarioBanner.Started))
+    MarioBanner.Last = now
+end
+
+pcall(MarioBanner.Show)
+
+-- Unload previous instance cleanly
+if getgenv().StealAPetUnload then
+    pcall(getgenv().StealAPetUnload)
+end
+do
+    local hui = gethui and gethui() or game:GetService("CoreGui")
+    local old = hui:FindFirstChild("MarioPetInspector")
+    if old then pcall(function() old:Destroy() end) end
+end
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local PathfindingService = game:GetService("PathfindingService")
+local CollectionService = game:GetService("CollectionService")
+local LocalPlayer = Players.LocalPlayer
+
+local Shared = ReplicatedStorage:WaitForChild("Shared", 15)
+local ConfigFolder = Shared:WaitForChild("Config", 15)
+local PetConfig = require(ConfigFolder:WaitForChild("PetConfig"))
+local CageConfig = require(ConfigFolder:WaitForChild("CageConfig"))
+local QualityConfig = require(ConfigFolder:WaitForChild("QualityConfig"))
+
+local RemotesFolder = Shared:WaitForChild("Remotes", 15)
+local OpenCageRemote = RemotesFolder and RemotesFolder:FindFirstChild("OpenCage")
+local PlaceCageRemote = RemotesFolder and RemotesFolder:FindFirstChild("PlaceCage")
+local ReplaceWithCageRemote = RemotesFolder and RemotesFolder:FindFirstChild("ReplaceWithCage")
+local StorePetRemote = RemotesFolder and RemotesFolder:FindFirstChild("StorePet")
+local FusePetsRemote = RemotesFolder and RemotesFolder:FindFirstChild("FusePets")
+local HalloweenConfig = nil
+pcall(function()
+    HalloweenConfig = require(ConfigFolder:WaitForChild("HalloweenConfig", 5))
+end)
+local BuyCandyRemote = RemotesFolder and RemotesFolder:FindFirstChild("BuyCandyItem")
+local SpookyCageRemote = RemotesFolder and RemotesFolder:FindFirstChild("SpookyCage")
+local SpookyStormRemote = RemotesFolder and RemotesFolder:FindFirstChild("SpookyStorm")
+
+pcall(MarioBanner.Step, "Config & Remotes")
+
+-- Colors & Helpers
+local RarityColors = {
+    ["Singularity+"] = Color3.fromRGB(255, 240, 200),
+    ["Singularity"]  = Color3.fromRGB(232, 224, 255),
+    ["Omega"]        = Color3.fromRGB(255, 112, 56),
+    ["Astral"]       = Color3.fromRGB(124, 136, 255),
+    ["Infinity"]     = Color3.fromRGB(150, 226, 255),
+    ["Divine"]       = Color3.fromRGB(255, 238, 96),
+    ["Eternal"]      = Color3.fromRGB(70, 236, 255),
+    ["Secret"]       = Color3.fromRGB(246, 248, 255),
+    ["Cosmic"]       = Color3.fromRGB(255, 96, 220),
+    ["Mythic"]       = Color3.fromRGB(255, 84, 84),
+    ["Legendary"]    = Color3.fromRGB(255, 208, 64),
+    ["Epic"]         = Color3.fromRGB(196, 120, 255),
+    ["Rare"]         = Color3.fromRGB(86, 176, 255),
+    ["Uncommon"]     = Color3.fromRGB(104, 226, 116),
+    ["Common"]       = Color3.fromRGB(196, 202, 214),
+}
+
+local QualityColors = {
+    ["Celestial"]   = Color3.fromRGB(255, 215, 0),
+    ["Supernova"]   = Color3.fromRGB(255, 90, 90),
+    ["Galaxy"]      = Color3.fromRGB(180, 110, 255),
+    ["Immaculate"]  = Color3.fromRGB(80, 220, 255),
+    ["Perfect"]     = Color3.fromRGB(90, 255, 140),
+    ["Mint"]        = Color3.fromRGB(80, 240, 190),
+    ["Great"]       = Color3.fromRGB(100, 180, 255),
+    ["Good"]        = Color3.fromRGB(150, 210, 100),
+    ["Normal"]      = Color3.fromRGB(175, 185, 200),
+}
+
+local Suffixes = {"", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"}
+local function FormatNumber(n)
+    if not n or n ~= n or n <= 0 then return "0" end
+    local exp = math.floor(math.log(n, 10))
+    local idx = math.floor(exp / 3)
+    if idx <= 0 then return string.format("%.0f", n) end
+    if idx > #Suffixes - 1 then idx = #Suffixes - 1 end
+    local div = 10 ^ (idx * 3)
+    return string.format("%.2f %s", n / div, Suffixes[idx + 1])
+end
+
+local function FormatTime(secs)
+    if secs <= 0 then return "00:00" end
+    local h = math.floor(secs / 3600)
+    local m = math.floor((secs % 3600) / 60)
+    local s = math.floor(secs % 60)
+    if h > 0 then
+        return string.format("%02d:%02d:%02d", h, m, s)
+    else
+        return string.format("%02d:%02d", m, s)
+    end
+end
+
+-- ============================================================================
+-- Plot & World Identification
+-- ============================================================================
+local function GetPlayerPlot()
+    local plots = workspace:FindFirstChild("Hub") and workspace.Hub:FindFirstChild("Plots")
+    if not plots then return nil end
+
+    for _, pl in ipairs(plots:GetChildren()) do
+        if pl:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+            return pl
+        end
+    end
+
+    for _, pl in ipairs(plots:GetChildren()) do
+        if pl:GetAttribute("Owner") == LocalPlayer.Name then
+            return pl
+        end
+    end
+
+    local plotAttr = LocalPlayer:GetAttribute("Plot")
+    if plotAttr then
+        local pl = plots:FindFirstChild("Plot" .. tostring(plotAttr))
+        if pl then return pl end
+    end
+
+    return nil
+end
+
+-- ============================================================================
+-- 3D Model Cache Engine (LookCache)
+-- ============================================================================
+local LookCache = {
+    Pets = {},
+    Cages = {},
+}
+
+local function FindModelForKind(category, kind)
+    local plots = workspace:FindFirstChild("Hub") and workspace.Hub:FindFirstChild("Plots")
+    if not plots then return nil end
+
+    -- 1. Check player's own plot first
+    local myPlot = GetPlayerPlot()
+    if myPlot then
+        local folder = myPlot:FindFirstChild(category)
+        if folder then
+            for _, item in ipairs(folder:GetChildren()) do
+                if item:GetAttribute("Kind") == kind then
+                    local look = item:FindFirstChild("Look")
+                    if look then return look end
+                end
+            end
+        end
+    end
+
+    -- 2. Check all plots in Hub
+    for _, pl in ipairs(plots:GetChildren()) do
+        local folder = pl:FindFirstChild(category)
+        if folder then
+            for _, item in ipairs(folder:GetChildren()) do
+                if item:GetAttribute("Kind") == kind then
+                    local look = item:FindFirstChild("Look")
+                    if look then return look end
+                end
+            end
+        end
+    end
+
+    -- 3. Check DroppedCages if looking for Cages
+    if category == "Cages" and workspace:FindFirstChild("DroppedCages") then
+        for _, c in ipairs(workspace.DroppedCages:GetChildren()) do
+            if c:GetAttribute("Kind") == kind then
+                local look = c:FindFirstChild("Look")
+                if look then return look end
+            end
+        end
+    end
+
+    return nil
+end
+
+local function SanitizeModel(model)
+    if not model then return nil end
+    local clone = model:Clone()
+
+    -- Re-center all parts so origin is (0, 0, 0)
+    local cf, _ = clone:GetBoundingBox()
+    local origin = cf.Position
+
+    for _, desc in ipairs(clone:GetDescendants()) do
+        if desc:IsA("LuaSourceContainer") or desc:IsA("Sound") or desc:IsA("ParticleEmitter") or desc:IsA("PointLight") or desc:IsA("Highlight") then
+            pcall(function() desc:Destroy() end)
+        elseif desc:IsA("BasePart") then
+            desc.CFrame = CFrame.new(desc.CFrame.Position - origin) * desc.CFrame.Rotation
+            desc.Anchored = true
+            desc.CanCollide = false
+            desc.CanTouch = false
+            desc.CanQuery = false
+        end
+    end
+    return clone
+end
+
+local function PopulateViewport(vpf, category, key, kind)
+    if not vpf then return end
+    if vpf:GetAttribute("LoadedKey") == key then
+        return
+    end
+
+    local model = LookCache[category] and LookCache[category][key]
+    if not model then
+        local source = FindModelForKind(category, kind)
+        if source then
+            local clean = SanitizeModel(source)
+            if clean then
+                LookCache[category][key] = clean
+                model = clean
+            end
+        end
+    end
+
+    if not model then return end
+
+    for _, c in ipairs(vpf:GetChildren()) do
+        if c:IsA("Camera") or c:IsA("Model") or c:IsA("BasePart") then
+            c:Destroy()
+        end
+    end
+
+    local display = model:Clone()
+    display.Parent = vpf
+
+    local _, size = display:GetBoundingBox()
+    local maxDim = math.max(size.X, size.Y, size.Z)
+    if maxDim < 0.1 then maxDim = 2 end
+
+    local camera = Instance.new("Camera")
+    camera.FieldOfView = 50
+    local dist = maxDim * 1.35
+    local camPos = Vector3.new(dist * 0.72, dist * 0.45, dist * 0.85)
+    camera.CFrame = CFrame.lookAt(camPos, Vector3.new(0, 0, 0))
+    camera.Parent = vpf
+    vpf.CurrentCamera = camera
+
+    vpf.Ambient = Color3.fromRGB(190, 190, 205)
+    vpf.LightColor = Color3.fromRGB(255, 255, 255)
+    vpf.LightDirection = Vector3.new(-1, -1.5, -1)
+    vpf:SetAttribute("LoadedKey", key)
+end
+
+-- ============================================================================
+-- Teleport Helper (Safe & Instant)
+-- ============================================================================
+local function TeleportTo(cf)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp and cf then
+        hrp.CFrame = cf
+        return true
+    end
+    return false
+end
+
+local function TeleportToIncubator()
+    local myPlot = GetPlayerPlot()
+    if not myPlot then return false, "No plot found" end
+
+    local cages = myPlot:FindFirstChild("Cages")
+    if cages and #cages:GetChildren() > 0 then
+        -- Teleport to first cage
+        local firstCage = cages:GetChildren()[1]
+        local root = firstCage:FindFirstChild("Root") or firstCage.PrimaryPart or firstCage:FindFirstChildWhichIsA("BasePart")
+        if root then
+            TeleportTo(root.CFrame + Vector3.new(0, 3, 4))
+            return true, "Teleported to your Cages!"
+        end
+    end
+
+    -- Fallback to plot bounds
+    local bounds = myPlot:FindFirstChild("Bounds") or myPlot:FindFirstChild("Barn")
+    if bounds then
+        local cf = bounds:IsA("Model") and bounds:GetBoundingBox() or bounds.CFrame
+        TeleportTo(cf + Vector3.new(0, 3, 0))
+        return true, "Teleported to your Plot!"
+    end
+
+    return false, "Could not locate Cages on plot"
+end
+
+-- ============================================================================
+-- UI Library Loader (Mario Template)
+-- ============================================================================
+local function LoadMarioUI()
+    if isfile and isfile("mario_ui.lua") then
+        local chunk = loadstring(readfile("mario_ui.lua"))
+        if chunk then
+            local ok, lib = pcall(chunk)
+            if ok and type(lib) == "table" then return lib end
+        end
+    end
+    local ok, source = pcall(game.HttpGet, game, "https://raw.githubusercontent.com/honymoon-hub/main.lua/refs/heads/main/honymoonhubUi")
+    if ok and type(source) == "string" and source:sub(-64):find("return%s+Library%s*$") then
+        local chunk = loadstring(source)
+        if chunk then
+            local s, lib = pcall(chunk)
+            if s and type(lib) == "table" then return lib end
+        end
+    end
+    return nil
+end
+
+local Library = LoadMarioUI()
+if not Library then
+    warn("[Honymoon Hub] Failed to load Mario UI Library!")
+    return
+end
+
+pcall(MarioBanner.Step, "Mario UI Library")
+
+local T = function(en, th) return Library:T(en, th) end
+
+-- Window Setup
+local Window = Library:CreateWindow({
+    Title = "Honymoon Hub",
+    SubTitle = "Steal A Pet And Ride It by xDSpyZ",
+    MenuKey = Enum.KeyCode.LeftControl,
+    ConfigFolder = "Steal A Pet And Ride It",
+    Language = "Auto",
+    Theme = "Overworld",
+})
+
+-- ============================================================================
+-- State & Cache
+-- ============================================================================
+local State = {
+    SearchText = "",
+    SortOrder = "Income (High -> Low)",
+    RarityFilter = "All",
+    LocationFilter = "All",
+    CageStatusFilter = "All",
+    BagPlaceStrategy = "Empty First, Then Lowest Pet",
+    AutoStorePets = false,
+    AutoStorePetsMode = "All Pets in Stalls",
+    NeedsPetRefresh = true,
+    NeedsCageRefresh = true,
+    NeedsBagRefresh = true,
+    IsAutoPlacing = false,
+    AutoStealCages = false,
+    StealTargetRarity = "Any",
+    StealMinPath = "Path 11",
+    StealStrategy = "Highest Tier First",
+    StealAutoPlace = true,
+    IsStealingActive = false,
+    IsStealingCycleRunning = false,
+    NeedsRadarRefresh = true,
+    -- Auto Fuse State
+    AutoFuse = false,
+    AutoFuseMaxQuality = "Immaculate",
+    IsAutoFusing = false,
+    -- Halloween Event State
+    AutoBuyCandy = false,
+    SelectedCandyItem = "Spooky Cage (40,000 🍬)",
+    NeedsHalloweenRefresh = true,
+}
+
+-- ============================================================================
+-- Data Collection
+-- ============================================================================
+local function CollectPets()
+    local list = {}
+    local myPetsFolder = LocalPlayer:FindFirstChild("Pets")
+    if not myPetsFolder then return list, list end
+
+    for _, petConfig in ipairs(myPetsFolder:GetChildren()) do
+        local petId = petConfig.Name
+        local kind = petConfig:GetAttribute("Kind") or "Unknown"
+        local quality = petConfig:GetAttribute("Quality") or "Normal"
+        local stall = petConfig:GetAttribute("Stall")
+
+        local cfg = PetConfig.Pets[kind] or {}
+        local baseIncome = cfg.Income or 0
+        local rarity = cfg.Rarity or "Common"
+
+        local qCfg = QualityConfig.Qualities[quality] or {}
+        local qualityMult = qCfg.Income or 1
+        local totalIncome = baseIncome * qualityMult
+
+        table.insert(list, {
+            Id = petId,
+            Kind = kind,
+            Quality = quality,
+            Rarity = rarity,
+            Stall = stall,
+            Income = totalIncome,
+            BaseIncome = baseIncome,
+            QualityMult = qualityMult,
+            InStall = stall ~= nil,
+        })
+    end
+
+    -- Filter
+    local filtered = {}
+    local query = State.SearchText:lower()
+    for _, pet in ipairs(list) do
+        local matchSearch = (query == "") or (pet.Kind:lower():find(query, 1, true) ~= nil) or (pet.Quality:lower():find(query, 1, true) ~= nil)
+        local matchRarity = (State.RarityFilter == "All") or (pet.Rarity == State.RarityFilter)
+        local matchLoc = true
+        if State.LocationFilter == "In Stall Only" then
+            matchLoc = pet.InStall
+        elseif State.LocationFilter == "Backpack Only" then
+            matchLoc = not pet.InStall
+        end
+
+        if matchSearch and matchRarity and matchLoc then
+            table.insert(filtered, pet)
+        end
+    end
+
+    -- Sort
+    table.sort(filtered, function(a, b)
+        if State.SortOrder == "Income (High -> Low)" then
+            return a.Income > b.Income
+        elseif State.SortOrder == "Income (Low -> High)" then
+            return a.Income < b.Income
+        elseif State.SortOrder == "Rarity" then
+            return a.Rarity < b.Rarity
+        elseif State.SortOrder == "Quality" then
+            return a.Quality < b.Quality
+        end
+        return a.Income > b.Income
+    end)
+
+    return filtered, list
+end
+
+local function CollectCages()
+    local list = {}
+    local myPlot = GetPlayerPlot()
+    local plotCages = myPlot and myPlot:FindFirstChild("Cages")
+
+    local myCagesFolder = LocalPlayer:FindFirstChild("Cages")
+    if not myCagesFolder then return list, list end
+
+    local now = workspace:GetServerTimeNow()
+
+    for _, cageFolder in ipairs(myCagesFolder:GetChildren()) do
+        local cageId = cageFolder.Name
+        local kind = cageFolder:GetAttribute("Kind") or "Cage"
+        local stall = cageFolder:GetAttribute("Stall")
+        local path = cageFolder:GetAttribute("Path")
+        local readyAt = cageFolder:GetAttribute("ReadyAt")
+
+        local duration = CageConfig.GetOpenSeconds and CageConfig.GetOpenSeconds(kind, path) or (CageConfig.Cages[kind] and CageConfig.Cages[kind].OpenSeconds or 60)
+        local remaining = 0
+        local elapsed = 0
+        local progress = 0
+        local isReady = false
+        local isIncubating = false
+        local isBackpack = false
+
+        if stall ~= nil and readyAt ~= nil then
+            remaining = math.max(0, readyAt - now)
+            if remaining <= 0 then
+                isReady = true
+                progress = 1
+            else
+                isIncubating = true
+                elapsed = math.max(0, duration - remaining)
+                progress = math.clamp(elapsed / duration, 0, 1)
+            end
+        else
+            isBackpack = true
+            progress = 0
+        end
+
+        local liveCage = plotCages and plotCages:FindFirstChild(cageId)
+
+        table.insert(list, {
+            Id = cageId,
+            Kind = kind,
+            Stall = stall,
+            Path = path,
+            ReadyAt = readyAt,
+            Remaining = remaining,
+            Progress = progress,
+            IsReady = isReady,
+            IsIncubating = isIncubating,
+            IsBackpack = isBackpack,
+            Duration = duration,
+            LiveCage = liveCage,
+        })
+    end
+
+    -- Filter
+    local filtered = {}
+    for _, cage in ipairs(list) do
+        local matchStatus = true
+        if State.CageStatusFilter == "Ready to Hatch Only" then
+            matchStatus = cage.IsReady
+        elseif State.CageStatusFilter == "Hatching Only" then
+            matchStatus = cage.IsIncubating
+        elseif State.CageStatusFilter == "Backpack Only" then
+            matchStatus = cage.IsBackpack
+        end
+
+        if matchStatus then
+            table.insert(filtered, cage)
+        end
+    end
+
+    table.sort(filtered, function(a, b)
+        local scoreA = a.IsReady and 3 or (a.IsIncubating and 2 or 1)
+        local scoreB = b.IsReady and 3 or (b.IsIncubating and 2 or 1)
+        if scoreA ~= scoreB then
+            return scoreA > scoreB
+        end
+        if a.IsIncubating and b.IsIncubating then
+            return a.Remaining < b.Remaining
+        end
+        return a.Kind < b.Kind
+    end)
+
+    return filtered, list
+end
+
+-- ============================================================================
+-- Stall & Bag Placement Engine
+-- ============================================================================
+local StallModelCache = {}
+
+local function GetStallModel(stallIndex)
+    if StallModelCache[stallIndex] and StallModelCache[stallIndex].Parent then
+        return StallModelCache[stallIndex]
+    end
+    local myPlot = GetPlayerPlot()
+    if not myPlot then return nil end
+
+    local function scan(parent)
+        if not parent then return nil end
+        for _, stall in ipairs(parent:GetChildren()) do
+            if stall:GetAttribute("Index") == stallIndex then
+                return stall
+            end
+        end
+        return nil
+    end
+
+    local model = scan(myPlot:FindFirstChild("Barn") and myPlot.Barn:FindFirstChild("Stalls"))
+    if not model then
+        model = scan(myPlot:FindFirstChild("Barn2") and myPlot.Barn2:FindFirstChild("Stalls"))
+    end
+    if model then
+        StallModelCache[stallIndex] = model
+    end
+    return model
+end
+
+local function GetStallStates()
+    local stallMap = {}
+    local emptyStalls = {}
+    local petStalls = {}
+    local cageStalls = {}
+
+    for i = 1, 48 do
+        local model = GetStallModel(i)
+        if model then
+            stallMap[i] = {
+                Index = i,
+                Status = "Empty",
+                Model = model,
+                Pet = nil,
+                Cage = nil,
+            }
+        end
+    end
+
+    local myPetsFolder = LocalPlayer:FindFirstChild("Pets")
+    if myPetsFolder then
+        for _, petConfig in ipairs(myPetsFolder:GetChildren()) do
+            local st = petConfig:GetAttribute("Stall")
+            if st and stallMap[st] then
+                local kind = petConfig:GetAttribute("Kind") or "Unknown"
+                local quality = petConfig:GetAttribute("Quality") or "Normal"
+                local cfg = PetConfig.Pets[kind] or {}
+                local base = cfg.Income or 0
+                local qCfg = QualityConfig.Qualities[quality] or {}
+                local mult = qCfg.Income or 1
+                local income = base * mult
+
+                stallMap[st].Status = "Pet"
+                stallMap[st].Pet = {
+                    Id = petConfig.Name,
+                    Kind = kind,
+                    Quality = quality,
+                    Income = income,
+                    Rarity = cfg.Rarity or "Common",
+                }
+            end
+        end
+    end
+
+    local myCagesFolder = LocalPlayer:FindFirstChild("Cages")
+    if myCagesFolder then
+        for _, cageFolder in ipairs(myCagesFolder:GetChildren()) do
+            local st = cageFolder:GetAttribute("Stall")
+            if st and stallMap[st] then
+                local kind = cageFolder:GetAttribute("Kind") or "Cage"
+                local readyAt = cageFolder:GetAttribute("ReadyAt")
+                local now = workspace:GetServerTimeNow()
+                local isReady = (readyAt ~= nil and readyAt <= now)
+
+                stallMap[st].Status = "Cage"
+                stallMap[st].Cage = {
+                    Id = cageFolder.Name,
+                    Kind = kind,
+                    ReadyAt = readyAt,
+                    IsReady = isReady,
+                }
+            end
+        end
+    end
+
+    for i = 1, 48 do
+        local entry = stallMap[i]
+        if entry then
+            if entry.Status == "Empty" then
+                table.insert(emptyStalls, entry)
+            elseif entry.Status == "Pet" then
+                table.insert(petStalls, entry)
+            elseif entry.Status == "Cage" then
+                table.insert(cageStalls, entry)
+            end
+        end
+    end
+
+    table.sort(petStalls, function(a, b)
+        return a.Pet.Income < b.Pet.Income
+    end)
+
+    return emptyStalls, petStalls, cageStalls, stallMap
+end
+
+local function FormatCageOdds(oddsTable)
+    if not oddsTable or type(oddsTable) ~= "table" then return "N/A" end
+    local items = {}
+    for rarity, percent in pairs(oddsTable) do
+        table.insert(items, { Rarity = tostring(rarity), Percent = tonumber(percent) or 0 })
+    end
+    table.sort(items, function(a, b) return a.Percent > b.Percent end)
+    local parts = {}
+    for _, it in ipairs(items) do
+        table.insert(parts, string.format("%s (%s%%)", it.Rarity, tostring(it.Percent)))
+    end
+    return table.concat(parts, " • ")
+end
+
+local function CollectBagCages()
+    local list = {}
+    local myCagesFolder = LocalPlayer:FindFirstChild("Cages")
+    if not myCagesFolder then return list end
+
+    for _, cageFolder in ipairs(myCagesFolder:GetChildren()) do
+        local stall = cageFolder:GetAttribute("Stall")
+        if stall == nil then
+            local cageId = cageFolder.Name
+            local kind = cageFolder:GetAttribute("Kind") or "Cage"
+            local path = cageFolder:GetAttribute("Path")
+            local duration = CageConfig.GetOpenSeconds and CageConfig.GetOpenSeconds(kind, path)
+                or (CageConfig.Cages[kind] and CageConfig.Cages[kind].OpenSeconds or 60)
+            local odds = CageConfig.Cages[kind] and CageConfig.Cages[kind].Odds or {}
+
+            table.insert(list, {
+                Id = cageId,
+                Kind = kind,
+                Path = path,
+                Duration = duration,
+                Odds = odds,
+            })
+        end
+    end
+
+    table.sort(list, function(a, b)
+        local orderA = (CageConfig.Cages[a.Kind] and CageConfig.Cages[a.Kind].Order) or 0
+        local orderB = (CageConfig.Cages[b.Kind] and CageConfig.Cages[b.Kind].Order) or 0
+        if orderA ~= orderB then
+            return orderA > orderB
+        end
+        return a.Kind < b.Kind
+    end)
+
+    return list
+end
+
+local function PlaceCageIntoStall(cageId, targetStallIndex, skipReturn)
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return false, "Character not ready"
+    end
+    local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not hrp then return false, "Humanoid not found" end
+
+    local emptyStalls, petStalls, _, stallMap = GetStallStates()
+    local targetEntry = nil
+
+    if targetStallIndex then
+        targetEntry = stallMap[targetStallIndex]
+        if not targetEntry then
+            return false, string.format("Stall #%d not owned or invalid", targetStallIndex)
+        end
+        if targetEntry.Status == "Cage" then
+            return false, string.format("Stall #%d already has an incubating cage", targetStallIndex)
+        end
+    else
+        if State.BagPlaceStrategy == "Empty Stalls Only" then
+            targetEntry = emptyStalls[1]
+            if not targetEntry then
+                return false, "No empty stalls available (Empty Only mode)"
+            end
+        elseif State.BagPlaceStrategy == "Replace Lowest Pet Only" then
+            targetEntry = petStalls[1]
+            if not targetEntry then
+                return false, "No pet stalls available to replace"
+            end
+        else -- "Empty First, Then Lowest Pet"
+            targetEntry = emptyStalls[1] or petStalls[1]
+            if not targetEntry then
+                return false, "No stalls available (all occupied by cages)"
+            end
+        end
+    end
+
+    local stallIdx = targetEntry.Index
+    local stallModel = targetEntry.Model
+    local cf = stallModel:IsA("BasePart") and stallModel.CFrame
+        or (stallModel.PrimaryPart and stallModel.PrimaryPart.CFrame)
+        or (stallModel:IsA("Model") and stallModel:GetPivot())
+    if not cf then
+        return false, "Stall position not found"
+    end
+
+    local tool = (LocalPlayer:FindFirstChildOfClass("Backpack") and LocalPlayer.Backpack:FindFirstChild(cageId))
+        or LocalPlayer.Character:FindFirstChild(cageId)
+
+    if not tool then
+        return false, "Cage tool not found in backpack"
+    end
+
+    local originalCF = (not skipReturn) and hrp.CFrame or nil
+
+    -- 1. Visit stall: Move directly in front of the stall (Server checks distance <= 12-18 studs)
+    local targetCF = cf + Vector3.new(0, 3, 0)
+    hrp.CFrame = targetCF
+    task.wait(0.08)
+
+    -- 2. Equip cage tool
+    if tool.Parent ~= LocalPlayer.Character then
+        humanoid:EquipTool(tool)
+        task.wait(0.12)
+    end
+
+    -- 3. Trigger ProximityPrompt (KeyCode E) if present
+    local penPromptAnchor = stallModel:FindFirstChild("PenPromptAnchor")
+    if penPromptAnchor and typeof(fireproximityprompt) == "function" then
+        for _, prompt in ipairs(penPromptAnchor:GetChildren()) do
+            if prompt:IsA("ProximityPrompt") and prompt.KeyboardKeyCode == Enum.KeyCode.E then
+                pcall(fireproximityprompt, prompt, 0)
+            end
+        end
+    end
+
+    -- 4. Fire remote as guaranteed server trigger
+    if targetEntry.Status == "Empty" then
+        if PlaceCageRemote then
+            PlaceCageRemote:FireServer(cageId, stallIdx)
+        end
+    else
+        if ReplaceWithCageRemote then
+            ReplaceWithCageRemote:FireServer(cageId, stallIdx)
+        end
+    end
+
+    -- 5. Short wait & verify placement
+    local placed = false
+    local cagesFolder = LocalPlayer:FindFirstChild("Cages")
+    local cageObj = cagesFolder and cagesFolder:FindFirstChild(cageId)
+
+    for _ = 1, 8 do
+        task.wait(0.05)
+        if cageObj and cageObj:GetAttribute("Stall") == stallIdx then
+            placed = true
+            break
+        end
+        if not (LocalPlayer.Backpack:FindFirstChild(cageId) or LocalPlayer.Character:FindFirstChild(cageId)) then
+            placed = true
+            break
+        end
+    end
+
+    -- Return to starting position if this was a standalone single placement
+    if originalCF and hrp and hrp.Parent then
+        hrp.CFrame = originalCF
+    end
+
+    State.NeedsBagRefresh = true
+    State.NeedsCageRefresh = true
+    State.NeedsPetRefresh = true
+
+    if placed then
+        return true, string.format("Placed into Stall #%d (%s)", stallIdx, targetEntry.Status == "Empty" and "Empty" or "Replaced Pet")
+    else
+        return true, string.format("Sent Place to Stall #%d", stallIdx)
+    end
+end
+
+local function AutoPlaceAllCages()
+    if State.IsAutoPlacing then
+        Library:Notify("Place Cages", "Auto-placement is already running!", 2, "Warn")
+        return
+    end
+
+    local bagCages = CollectBagCages()
+    if #bagCages == 0 then
+        Library:Notify("Place Cages", "No cages in backpack to place.", 2, "Info")
+        return
+    end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local startCF = hrp and hrp.CFrame
+
+    State.IsAutoPlacing = true
+    task.spawn(function()
+        local placedCount = 0
+
+        for _, cage in ipairs(bagCages) do
+            if not State.IsAutoPlacing then break end
+
+            local emptyStalls, petStalls = GetStallStates()
+            local hasAvailableStall = false
+            if State.BagPlaceStrategy == "Empty Stalls Only" then
+                hasAvailableStall = (#emptyStalls > 0)
+            elseif State.BagPlaceStrategy == "Replace Lowest Pet Only" then
+                hasAvailableStall = (#petStalls > 0)
+            else
+                hasAvailableStall = (#emptyStalls > 0 or #petStalls > 0)
+            end
+
+            if not hasAvailableStall then
+                print("[Honymoon Hub] Placement finished: No more available stalls for strategy " .. tostring(State.BagPlaceStrategy))
+                break
+            end
+
+            local ok, msg = PlaceCageIntoStall(cage.Id, nil, true)
+            if ok then
+                placedCount = placedCount + 1
+                task.wait(0.08)
+            else
+                print("[Honymoon Hub] Placement finished:", msg)
+                break
+            end
+        end
+
+        -- After placing all cages, return player safely to original starting position
+        if startCF and hrp and hrp.Parent then
+            hrp.CFrame = startCF
+        end
+
+        State.IsAutoPlacing = false
+        State.NeedsBagRefresh = true
+        State.NeedsCageRefresh = true
+        State.NeedsPetRefresh = true
+
+        if placedCount > 0 then
+            Library:Notify("Place Cages", string.format("Placed %d cage(s) successfully across stalls!", placedCount), 3, "Success")
+        else
+            Library:Notify("Place Cages", "Could not place cages (no valid stalls or strategy limit).", 3, "Warn")
+        end
+    end)
+end
+
+local function StoreAllPets()
+    local _, petStalls = GetStallStates()
+    if #petStalls == 0 then
+        Library:Notify("Store Pets", "No pets currently in stalls.", 2, "Info")
+        return
+    end
+
+    task.spawn(function()
+        local stored = 0
+        for _, entry in ipairs(petStalls) do
+            if StorePetRemote then
+                StorePetRemote:FireServer(entry.Index)
+                stored = stored + 1
+                task.wait(0.08)
+            end
+        end
+        State.NeedsBagRefresh = true
+        State.NeedsPetRefresh = true
+        Library:Notify("Store Pets", string.format("Stored %d pet(s) back to backpack!", stored), 3, "Success")
+    end)
+end
+
+
+-- ============================================================================
+-- Auto Fuse Engine (Same Pet + Quality, 3 Pets Fuse, Normal -> Immaculate)
+-- ============================================================================
+local FuseLadder = { "Normal", "Good", "Great", "Mint", "Perfect" }
+local FuseLadderIndex = { Normal = 1, Good = 2, Great = 3, Mint = 4, Perfect = 5, Immaculate = 6 }
+local LblFuseStatus = nil
+
+local function RunAutoFuse(notifyUser)
+    if State.IsAutoFusing then
+        if notifyUser then
+            Library:Notify("Auto Fuse", "Fuse is already running!", 2, "Warn")
+        end
+        return
+    end
+
+    local fm = workspace:FindFirstChild("World2") and workspace.World2:FindFirstChild("Shops") and workspace.World2.Shops:FindFirstChild("FuseMachine")
+    if not fm then
+        if notifyUser then
+            Library:Notify("Auto Fuse", "Fuse Machine not found in World2!", 3, "Error")
+        end
+        return
+    end
+
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local petsFolder = LocalPlayer:FindFirstChild("Pets")
+    if not hrp or not petsFolder then return end
+
+    local maxTargetIdx = FuseLadderIndex[State.AutoFuseMaxQuality or "Immaculate"] or 6
+
+    local function findNextTriple()
+        for _, quality in ipairs(FuseLadder) do
+            local qIdx = FuseLadderIndex[quality] or 1
+            if qIdx < maxTargetIdx then
+                local groups = {}
+                for _, p in ipairs(petsFolder:GetChildren()) do
+                    local stall = p:GetAttribute("Stall")
+                    local locked = p:GetAttribute("Locked")
+                    local fav = p:GetAttribute("Favorite")
+                    local q = p:GetAttribute("Quality") or "Normal"
+                    local kind = p:GetAttribute("Kind")
+                    
+                    if stall == nil and not locked and not fav and q == quality and kind then
+                        groups[kind] = groups[kind] or {}
+                        table.insert(groups[kind], p.Name)
+                    end
+                end
+                for kind, list in pairs(groups) do
+                    if #list >= 3 then
+                        return kind, quality, { list[1], list[2], list[3] }
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    local testKind, testQ, testTriple = findNextTriple()
+    if not testKind then
+        if notifyUser then
+            Library:Notify("Auto Fuse", "No pets available to fuse (Need 3 same pet & quality).", 2, "Info")
+        end
+        return
+    end
+
+    State.IsAutoFusing = true
+    task.spawn(function()
+        local origCF = hrp.CFrame
+        local totalFused = 0
+
+        if LblFuseStatus then LblFuseStatus:SetText("Status: 🚀 Teleporting to Fuse Machine...") end
+        char:PivotTo(fm:GetPivot() + Vector3.new(0, 4, 0))
+        task.wait(0.3)
+
+        while true do
+            if not State.IsAutoFusing then break end
+            local kind, quality, triple = findNextTriple()
+            if not kind then break end
+
+            if LblFuseStatus then
+                LblFuseStatus:SetText(string.format("Status: ⚡ Fusing 3x %s (%s)...", kind, quality))
+            end
+
+            if FusePetsRemote then
+                FusePetsRemote:FireServer(triple[1], triple[2], triple[3])
+                totalFused = totalFused + 1
+                task.wait(0.35)
+            else
+                break
+            end
+        end
+
+        if hrp and hrp.Parent and origCF then
+            char:PivotTo(origCF)
+        end
+
+        State.IsAutoFusing = false
+        State.NeedsPetRefresh = true
+
+        if LblFuseStatus then
+            LblFuseStatus:SetText(string.format("Status: ✅ Finished (Fused %d sets)", totalFused))
+        end
+
+        if totalFused > 0 then
+            Library:Notify("Auto Fuse", string.format("Fused %d sets of pets successfully!", totalFused), 3, "Success")
+        elseif notifyUser then
+            Library:Notify("Auto Fuse", "No more pets could be fused.", 2, "Info")
+        end
+    end)
+end
+
+local function StoreLowestPet()
+    local _, petStalls = GetStallStates()
+    if #petStalls == 0 then
+        Library:Notify("Store Pets", "No pets in stalls to store.", 2, "Info")
+        return
+    end
+    local lowest = petStalls[1]
+    if StorePetRemote then
+        StorePetRemote:FireServer(lowest.Index)
+        Library:Notify("Store Pets", string.format("Stored %s from Stall #%d", lowest.Pet.Kind, lowest.Index), 2, "Success")
+        State.NeedsPetRefresh = true
+        State.NeedsBagRefresh = true
+    end
+end
+
+local function ProcessAutoStorePets()
+    if not State.AutoStorePets or not StorePetRemote then return end
+
+    local emptyStalls, petStalls = GetStallStates()
+    if #petStalls == 0 then return end
+
+    if State.AutoStorePetsMode == "All Pets in Stalls" then
+        for _, entry in ipairs(petStalls) do
+            StorePetRemote:FireServer(entry.Index)
+        end
+        State.NeedsPetRefresh = true
+        State.NeedsBagRefresh = true
+    elseif State.AutoStorePetsMode == "When Cages Need Room" then
+        local bagCages = CollectBagCages()
+        local needed = #bagCages - #emptyStalls
+        if needed > 0 then
+            for i = 1, math.min(needed, #petStalls) do
+                StorePetRemote:FireServer(petStalls[i].Index)
+            end
+            State.NeedsPetRefresh = true
+            State.NeedsBagRefresh = true
+        end
+    elseif State.AutoStorePetsMode == "Lowest Income First (Keep Top 5)" then
+        local totalInStalls = #petStalls
+        local toRemove = math.max(0, totalInStalls - 5)
+        if toRemove > 0 then
+            for i = 1, toRemove do
+                StorePetRemote:FireServer(petStalls[i].Index)
+            end
+            State.NeedsPetRefresh = true
+            State.NeedsBagRefresh = true
+        end
+    end
+end
+
+-- ============================================================================
+-- Simwalk Engine (100% Ban-Free Humanoid Walking - Strictly No Teleport)
+-- ============================================================================
+
+local LblStealStatus = nil
+local LblStealTargetInfo = nil
+local LblRadarSummary = nil
+local RadarScroll = nil
+
+local World2Checkpoints = {
+    Vector3.new(5966, 3, -8540),  -- Path 22
+    Vector3.new(6054, 3, -7922),  -- Path 21
+    Vector3.new(6000, 3, -5472),  -- Path 20
+    Vector3.new(6000, 3, -4385),  -- Path 19
+    Vector3.new(6000, 3, -3360),  -- Path 18
+    Vector3.new(6000, 3, -2560),  -- Path 17
+    Vector3.new(6000, 3, -1915),  -- Path 16
+    Vector3.new(6000, 3, -1408),  -- Path 15
+    Vector3.new(6000, 3, -1012),  -- Path 14
+    Vector3.new(6000, 3, -672),   -- Path 13
+    Vector3.new(6000, 3, -388),   -- Path 12
+    Vector3.new(6000, 3, -160),   -- Path 11
+    Vector3.new(5904, 5, 133),    -- Barn Base
+}
+
+local World1Checkpoints = {
+    Vector3.new(0, 42, -2392),    -- Path 10
+    Vector3.new(0, 3, -1832),     -- Path 9
+    Vector3.new(0, 3, -1504),     -- Path 8
+    Vector3.new(0, 3, -1208),     -- Path 7
+    Vector3.new(0, 3, -944),      -- Path 6
+    Vector3.new(0, 3, -712),      -- Path 5
+    Vector3.new(0, 3, -512),      -- Path 4
+    Vector3.new(0, 3, -344),      -- Path 3
+    Vector3.new(0, 3, -208),      -- Path 2
+    Vector3.new(0, 3, -104),      -- Path 1
+}
+
+local function SimwalkTo(destination, stopDist)
+    stopDist = stopDist or 5
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not (char and hum and hrp) then return false, {} end
+    if hum.Health <= 0 then return false, {} end
+
+    local path = PathfindingService:CreatePath({
+        AgentRadius = 2.5,
+        AgentHeight = 5,
+        AgentCanJump = true,
+        AgentCanClimb = true,
+        WaypointSpacing = 6,
+    })
+
+    local ok, _ = pcall(function()
+        path:ComputeAsync(hrp.Position, destination)
+    end)
+
+    if not ok or path.Status ~= Enum.PathStatus.Success then
+        -- Fallback direct MoveTo
+        hum:MoveTo(destination)
+        local t0 = os.clock()
+        while State.IsStealingActive and (hrp.Position - destination).Magnitude > stopDist and (os.clock() - t0) < 3 do
+            task.wait(0.05)
+        end
+        return (hrp.Position - destination).Magnitude <= (stopDist + 4), {}
+    end
+
+    local waypoints = path:GetWaypoints()
+    for _, wp in ipairs(waypoints) do
+        if not State.IsStealingActive then break end
+        if (hrp.Position - destination).Magnitude <= stopDist then break end
+        if wp.Action == Enum.PathWaypointAction.Jump then
+            hum.Jump = true
+        end
+        hum:MoveTo(wp.Position)
+        local t0 = os.clock()
+        while State.IsStealingActive and (hrp.Position - wp.Position).Magnitude > 5 and (os.clock() - t0) < 1.0 do
+            if (hrp.Position - destination).Magnitude <= stopDist then break end
+            task.wait(0.015)
+        end
+    end
+
+    -- Final approach directly to target
+    local t0 = os.clock()
+    while State.IsStealingActive and (hrp.Position - destination).Magnitude > stopDist and (os.clock() - t0) < 1.0 do
+        hum:MoveTo(destination)
+        task.wait(0.03)
+    end
+
+    local finalDist = (hrp.Position - destination).Magnitude
+    return finalDist <= (stopDist + 3), waypoints
+end
+
+local function WalkToCage(targetPos)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not (char and hum and hrp) then return false end
+
+    local isWorld2 = (hrp.Position.X > 2000)
+    local checkpoints = isWorld2 and World2Checkpoints or World1Checkpoints
+
+    -- Step forward through checkpoints if target is far away (> 400 studs)
+    for i = #checkpoints, 1, -1 do
+        if not State.IsStealingActive then break end
+        local cp = checkpoints[i]
+        if cp.Z < (hrp.Position.Z - 30) and cp.Z > (targetPos.Z + 40) then
+            hum:MoveTo(cp)
+            local t0 = os.clock()
+            while State.IsStealingActive and (hrp.Position - cp).Magnitude > 18 and (os.clock() - t0) < 4 do
+                hum:MoveTo(cp)
+                task.wait(0.03)
+            end
+        end
+    end
+
+    -- For final approach, use PathfindingService to get directly to the cage
+    local arrived, _ = SimwalkTo(targetPos, 4.5)
+    return arrived
+end
+
+local function SprintBackToBase()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not (char and hum and hrp) then return false end
+
+    local myPlot = GetPlayerPlot()
+    local barn = myPlot and myPlot:FindFirstChild("Barn")
+    local barnPos = barn and barn:GetPivot().Position or (myPlot and myPlot:GetPivot().Position) or Vector3.new(5904, 5, 133)
+
+    local isWorld2 = (hrp.Position.X > 2000)
+    local checkpoints = isWorld2 and World2Checkpoints or World1Checkpoints
+
+    -- 1. INSTANT 1ST FRAME MOVE: rotate and run towards base immediately!
+    hum:MoveTo(barnPos)
+
+    -- 2. Traverse through checkpoints on the way back to base
+    for _, cp in ipairs(checkpoints) do
+        if not State.IsStealingActive then break end
+        if cp.Z > (hrp.Position.Z + 20) and cp.Z < (barnPos.Z - 10) then
+            hum:MoveTo(cp)
+            local t0 = os.clock()
+            while State.IsStealingActive and (hrp.Position - cp).Magnitude > 18 and (os.clock() - t0) < 4 do
+                hum:MoveTo(cp)
+                task.wait(0.03)
+            end
+        end
+    end
+
+    -- 3. Final sprint directly to the barn / plot
+    hum:MoveTo(barnPos)
+    local tEnd = os.clock()
+    while State.IsStealingActive and (hrp.Position - barnPos).Magnitude > 8 and (os.clock() - tEnd) < 3 do
+        hum:MoveTo(barnPos)
+        task.wait(0.04)
+    end
+
+    return (hrp.Position - barnPos).Magnitude <= 15
+end
+
+local function ParseWorldPrompt(p)
+    if not p or not p.Parent then return nil end
+    local parent = p.Parent
+    local model = parent:IsA("Model") and parent or parent.Parent
+    if not (model and model:IsA("Model")) then return nil end
+
+    local kind = model:GetAttribute("Kind") or model.Name:gsub("Cage$", ""):gsub("Cage%+$", "+")
+    if p.ObjectText and p.ObjectText ~= "" then
+        local fromObj = p.ObjectText:gsub("%s*Cage%s*$", "")
+        if fromObj ~= "" then kind = fromObj end
+    end
+
+    local pathNum = model:GetAttribute("Path")
+    if not pathNum and model.Parent then
+        local pName = model.Parent.Name
+        if pName == "Cages" and model.Parent.Parent then
+            pName = model.Parent.Parent.Name
+        end
+        pathNum = tonumber(pName:match("%d+"))
+    end
+
+    local root = model:FindFirstChild("Root") or model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+    if not root then return nil end
+
+    return {
+        Prompt = p,
+        Model = model,
+        Root = root,
+        Kind = kind,
+        Path = pathNum or 1,
+        Position = root.Position,
+        HoldDuration = p.HoldDuration or 1,
+    }
+end
+
+local function GetAvailableWorldCages()
+    local list = {}
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return list end
+
+    local myWorld = (hrp.Position.X > 2000) and 2 or 1
+    local prompts = CollectionService:GetTagged("StealPrompt")
+
+    for _, p in ipairs(prompts) do
+        if p.Enabled and p.Parent then
+            local data = ParseWorldPrompt(p)
+            if data and data.Root and data.Root.Parent then
+                local cageWorld = (data.Position.X > 2000) and 2 or 1
+                if cageWorld == myWorld then
+                    data.Distance = (hrp.Position - data.Position).Magnitude
+                    table.insert(list, data)
+                end
+            end
+        end
+    end
+
+    return list
+end
+
+local function StopStealWalking()
+    State.IsStealingActive = false
+    State.IsStealingCycleRunning = false
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
+    end
+    if LblStealStatus then
+        LblStealStatus:SetText("Status: Stopped (Idle)")
+    end
+    if LblStealTargetInfo then
+        LblStealTargetInfo:SetText("Target: None")
+    end
+    Library:Notify("Auto Steal", "Walking stopped.", 2, "Info")
+end
+
+local function RunStealCycle(specificTarget, isManual)
+    if State.IsStealingCycleRunning then return end
+    State.IsStealingCycleRunning = true
+    State.IsStealingActive = true
+
+    task.spawn(function()
+        local target = specificTarget
+
+        if not target then
+            local cages = GetAvailableWorldCages()
+            local filtered = {}
+            local minPathNum = tonumber(State.StealMinPath:match("%d+")) or 1
+
+            for _, cage in ipairs(cages) do
+                local matchRarity = (State.StealTargetRarity == "All" or State.StealTargetRarity == "Any") or (cage.Kind == State.StealTargetRarity)
+                local matchPath = cage.Path >= minPathNum
+                if matchRarity and matchPath then
+                    table.insert(filtered, cage)
+                end
+            end
+
+            if #filtered == 0 then
+                if LblStealStatus then
+                    LblStealStatus:SetText("Status: No matching cages found. Retrying...")
+                end
+                task.wait(2)
+                State.IsStealingCycleRunning = false
+                return
+            end
+
+            -- Sort by strategy
+            if State.StealStrategy == "Highest Tier First" then
+                table.sort(filtered, function(a, b)
+                    if a.Path ~= b.Path then
+                        return a.Path > b.Path
+                    end
+                    return a.Distance < b.Distance
+                end)
+            else
+                table.sort(filtered, function(a, b)
+                    return a.Distance < b.Distance
+                end)
+            end
+
+            target = filtered[1]
+        end
+
+        if not target or not target.Prompt or not target.Root or not target.Root.Parent then
+            if LblStealStatus then
+                LblStealStatus:SetText("Status: Target no longer valid.")
+            end
+            task.wait(1)
+            State.IsStealingCycleRunning = false
+            return
+        end
+
+        if LblStealTargetInfo then
+            LblStealTargetInfo:SetText(string.format("Target: %s (Path %d • %.0f studs)", target.Kind, target.Path, target.Distance or 0))
+        end
+
+        -- Step 1: Walk to cage (Ban-Free, Strictly No Teleport)
+        if LblStealStatus then
+            LblStealStatus:SetText(string.format("Status: 🏃 Walking to %s (Path %d)...", target.Kind, target.Path))
+        end
+        local arrived = WalkToCage(target.Position)
+        if not arrived or not State.IsStealingActive then
+            if LblStealStatus then
+                LblStealStatus:SetText("Status: Walk interrupted or unreachable.")
+            end
+            State.IsStealingCycleRunning = false
+            return
+        end
+
+        -- Step 2: Instant Steal & Immediate Turnaround (ห้ามค้าง รีบเดินกลับทันที!)
+        if LblStealStatus then
+            LblStealStatus:SetText(string.format("Status: 🤏 Stealing %s...", target.Kind))
+        end
+
+        local myPlot = GetPlayerPlot()
+        local barn = myPlot and myPlot:FindFirstChild("Barn")
+        local barnPos = barn and barn:GetPivot().Position or (myPlot and myPlot:GetPivot().Position) or Vector3.new(5904, 5, 133)
+
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+
+        local grabbed = false
+        local grabConn1, grabConn2
+
+        local function OnGrabbed()
+            if grabbed then return end
+            grabbed = true
+            if hum then
+                -- INSTANT 1ST FRAME MOVE: rotate 180 and bolt towards base immediately!
+                hum:MoveTo(barnPos)
+            end
+        end
+
+        if char then
+            grabConn1 = char.ChildAdded:Connect(function(child)
+                if child.Name == "Held" or child:IsA("Model") or child:IsA("Tool") then
+                    OnGrabbed()
+                end
+            end)
+        end
+        if LocalPlayer:FindFirstChild("Backpack") then
+            grabConn2 = LocalPlayer.Backpack.ChildAdded:Connect(function()
+                OnGrabbed()
+            end)
+        end
+
+        -- Trigger proximity prompt
+        if fireproximityprompt and target.Prompt and target.Prompt.Parent then
+            fireproximityprompt(target.Prompt, target.HoldDuration or 1)
+        end
+
+        -- Wait ONLY until grab is detected, or cage is removed, or max hold duration
+        local tStart = os.clock()
+        local maxWait = (target.HoldDuration or 1) + 0.12
+        while not grabbed and (os.clock() - tStart) < maxWait do
+            if not target.Prompt or not target.Prompt.Parent or not target.Model.Parent then
+                OnGrabbed()
+                break
+            end
+            task.wait(0.015)
+        end
+
+        if grabConn1 then grabConn1:Disconnect() end
+        if grabConn2 then grabConn2:Disconnect() end
+
+        -- Step 3: INSTANT SPRINT BACK TO BASE (Zero hesitation, zero lag!)
+        if LblStealStatus then
+            LblStealStatus:SetText("Status: 🏃 Sprinting back to Base (Zero Delay)!")
+        end
+
+        local returned = SprintBackToBase()
+
+        if returned then
+            if LblStealStatus then
+                LblStealStatus:SetText("Status: 🏡 Returned home safely!")
+            end
+            if State.StealAutoPlace then
+                if LblStealStatus then
+                    LblStealStatus:SetText("Status: 🥚 Placing newly stolen cages...")
+                end
+                task.wait(0.15)
+                pcall(AutoPlaceAllCages)
+            end
+        else
+            if LblStealStatus then
+                LblStealStatus:SetText("Status: Return path interrupted.")
+            end
+        end
+
+        task.wait(0.4)
+        if not State.AutoStealCages then
+            if LblStealStatus then
+                LblStealStatus:SetText("Status: Idle")
+            end
+        end
+        State.IsStealingCycleRunning = false
+    end)
+end
+
+-- ============================================================================
+-- Build Mario UI Tabs
+-- ============================================================================
+
+-- 1. Main Tab (Overview & Status)
+Window:AddTabSection(T("Main", "หลัก"))
+local MainTab = Window:AddTab(T("Home", "หน้าแรก"), "house", T("Farm overview & quick actions", "ภาพรวมฟาร์มและการทำงานด่วน"))
+
+local StatusBox = MainTab:AddLeftGroupbox(T("Farm & Pets Overview", "ภาพรวมฟาร์มและสัตว์เลี้ยง"), "star")
+local LblTotalIncome = StatusBox:AddLabel(T("Total Income: Calculating...", "รายได้รวม: กำลังคำนวณ..."))
+local LblTopEarner = StatusBox:AddLabel(T("Top Earner: Calculating...", "สัตว์เลี้ยงที่ทำเงินสูงสุด: -"))
+local LblStallOccupancy = StatusBox:AddLabel(T("Stalls: - / -", "คอกสัตว์: - / -"))
+local LblTotalPets = StatusBox:AddLabel(T("Total Pets: -", "จำนวนสัตว์เลี้ยงทั้งหมด: -"))
+
+local IncubatorBox = MainTab:AddRightGroupbox(T("Incubator Actions", "กรงฟักไข่ด่วน"), "flower")
+local LblCagesProgress = IncubatorBox:AddLabel(T("Cages Hatching: -", "ไข่ที่กำลังฟัก: -"))
+local LblCagesReady = IncubatorBox:AddLabel(T("Ready to Hatch: -", "ไข่ที่พร้อมฟัก: -"))
+
+IncubatorBox:AddButton({
+    Text = T("⚡ Teleport to Incubator", "⚡ วาร์ปไปที่กรงฟักไข่"),
+    Func = function()
+        local ok, msg = TeleportToIncubator()
+        if ok then
+            Library:Notify("Teleport", msg, 2, "Success")
+        else
+            Library:Notify("Teleport", msg, 2, "Warn")
+        end
+    end,
+})
+
+IncubatorBox:AddButton({
+    Text = T("🐣 Hatch Ready Cages", "🐣 ฟักไข่ที่พร้อมทั้งหมด"),
+    Func = function()
+        local _, allCages = CollectCages()
+        local hatchedCount = 0
+        for _, cage in ipairs(allCages) do
+            if cage.IsReady and OpenCageRemote then
+                OpenCageRemote:FireServer(cage.Id)
+                hatchedCount = hatchedCount + 1
+            end
+        end
+        if hatchedCount > 0 then
+            Library:Notify("Incubator", string.format("Hatched %d ready cage(s)!", hatchedCount), 3, "Success")
+        else
+            Library:Notify("Incubator", "No cages ready to hatch right now.", 2, "Info")
+        end
+    end,
+})
+
+-- 2. My Pets Tab
+Window:AddTabSection(T("Management", "การจัดการ"))
+local PetsTab = Window:AddTab(T("My Pets", "สัตว์เลี้ยงของฉัน"), "shell", T("Inspect and filter pets by income", "ดูข้อมูลและเรียงสัตว์เลี้ยงตามค่าเงิน"))
+
+local PetFilterBox = PetsTab:AddLeftGroupbox(T("Filters & Sort", "ตัวกรองและการเรียง"), "star")
+
+PetFilterBox:AddInput("PetSearch", {
+    Text = T("Search Pet", "ค้นหาสัตว์เลี้ยง"),
+    Placeholder = T("e.g. Orca, Celestial...", "เช่น Orca, Celestial..."),
+    Callback = function(val)
+        State.SearchText = val or ""
+        State.NeedsPetRefresh = true
+    end,
+})
+
+PetFilterBox:AddDropdown("PetSort", {
+    Text = T("Sort By", "เรียงตาม"),
+    Values = {
+        "Income (High -> Low)",
+        "Income (Low -> High)",
+        "Rarity",
+        "Quality",
+    },
+    Default = "Income (High -> Low)",
+    Callback = function(val)
+        State.SortOrder = val
+        State.NeedsPetRefresh = true
+    end,
+})
+
+PetFilterBox:AddDropdown("PetRarity", {
+    Text = T("Rarity Filter", "ระดับความหายาก"),
+    Values = {
+        "All", "Singularity+", "Singularity", "Omega", "Astral",
+        "Infinity", "Divine", "Eternal", "Cosmic", "Mythic",
+        "Legendary", "Epic", "Rare", "Uncommon", "Common",
+    },
+    Default = "All",
+    Callback = function(val)
+        State.RarityFilter = val
+        State.NeedsPetRefresh = true
+    end,
+})
+
+PetFilterBox:AddDropdown("PetLocation", {
+    Text = T("Location", "ตำแหน่งที่อยู่"),
+    Values = {
+        "All",
+        "In Stall Only",
+        "Backpack Only",
+    },
+    Default = "All",
+    Callback = function(val)
+        State.LocationFilter = val
+        State.NeedsPetRefresh = true
+    end,
+})
+
+PetFilterBox:AddButton({
+    Text = T("🔄 Refresh Pets", "🔄 รีเฟรชรายการสัตว์"),
+    Func = function()
+        State.NeedsPetRefresh = true
+    end,
+})
+
+local PetActionBox = PetsTab:AddLeftGroupbox(T("Auto Unequip / Store", "ถอดสัตว์อัตโนมัติ"), "flower")
+
+PetActionBox:AddToggle("AutoStorePetsToggle", {
+    Text = T("Auto Store Pets", "ถอดสัตว์อัตโนมัติ"),
+    Default = false,
+    Callback = function(val)
+        State.AutoStorePets = val
+        if val then
+            Library:Notify("Auto Store", "Auto-storing pets is now ACTIVE", 2, "Info")
+        end
+    end,
+})
+
+PetActionBox:AddDropdown("AutoStorePetsMode", {
+    Text = T("Store Mode", "โหมดการถอดสัตว์"),
+    Values = {
+        "All Pets in Stalls",
+        "When Cages Need Room",
+        "Lowest Income First (Keep Top 5)",
+    },
+    Default = "All Pets in Stalls",
+    Callback = function(val)
+        State.AutoStorePetsMode = val
+    end,
+})
+
+PetActionBox:AddButton({
+    Text = T("📦 Store All Pets Now", "📦 ถอดสัตว์ทั้งหมดทันที"),
+    Func = function()
+        StoreAllPets()
+    end,
+})
+
+PetActionBox:AddButton({
+    Text = T("🔻 Store Lowest Earner", "🔻 ถอดสัตว์ที่ทำเงินน้อยสุด"),
+    Func = function()
+        StoreLowestPet()
+    end,
+})
+
+
+local FuseBox = PetsTab:AddLeftGroupbox(T("Auto Fuse Pets", "ผสมสัตว์อัตโนมัติ (Fuse)"), "star")
+
+FuseBox:AddToggle("AutoFuseToggle", {
+    Text = T("Auto Fuse (Loop)", "ผสมสัตว์อัตโนมัติ (วนลูป)"),
+    Default = false,
+    Tooltip = T("Automatically fuse 3 identical pets of same quality up to Immaculate", "ผสมสัตว์ชนิดเดียวกันและระดับเดียวกัน 3 ตัวขึ้นไปอัตโนมัติ"),
+    Callback = function(val)
+        State.AutoFuse = val
+        if val then
+            RunAutoFuse(true)
+        end
+    end,
+})
+
+FuseBox:AddDropdown("AutoFuseMaxQualityDrop", {
+    Values = { "Immaculate", "Perfect", "Mint", "Great", "Good" },
+    Default = 1,
+    Multi = false,
+    Text = T("Max Target Quality", "ระดับเป้าหมายสูงสุด"),
+    Tooltip = T("Stop fusing once pet reaches this quality", "หยุดผสมเมื่อสัตว์ถึงระดับคุณภาพนี้"),
+    Callback = function(val)
+        State.AutoFuseMaxQuality = val
+    end,
+})
+
+LblFuseStatus = FuseBox:AddLabel(T("Status: Idle", "สถานะ: รอการทำงาน"))
+
+FuseBox:AddButton({
+    Text = T("⚡ Fuse All Eligible Pets Now", "⚡ ผสมสัตว์ที่พร้อมทั้งหมดทันที"),
+    Func = function()
+        RunAutoFuse(true)
+    end,
+})
+
+local PetListBox = PetsTab:AddRightGroupbox(T("Pet Cards", "รายการสัตว์เลี้ยง"), "shell")
+local PetChild = PetListBox:AddChild({ Height = 440 })
+local PetScroll = PetChild.Host
+PetScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+PetScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+PetScroll.ScrollBarThickness = 6
+PetScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+
+local PetLayout = Instance.new("UIListLayout")
+PetLayout.SortOrder = Enum.SortOrder.LayoutOrder
+PetLayout.Padding = UDim.new(0, 6)
+PetLayout.Parent = PetScroll
+
+-- 3. Incubator Tab
+local CagesTab = Window:AddTab(T("Incubator", "กรงฟักไข่"), "oneup", T("Egg countdown & preview", "นับเวลาถอยหลังและดูโมเดล 3D"))
+
+local CageFilterBox = CagesTab:AddLeftGroupbox(T("Incubator Controls", "การควบคุมกรง"), "star")
+
+CageFilterBox:AddButton({
+    Text = T("⚡ Teleport to Incubator", "⚡ วาร์ปไปที่กรงฟักไข่"),
+    Func = function()
+        local ok, msg = TeleportToIncubator()
+        if ok then
+            Library:Notify("Teleport", msg, 2, "Success")
+        else
+            Library:Notify("Teleport", msg, 2, "Warn")
+        end
+    end,
+})
+
+CageFilterBox:AddDropdown("CageStatus", {
+    Text = T("Filter Status", "กรองสถานะ"),
+    Values = {
+        "All",
+        "Ready to Hatch Only",
+        "Hatching Only",
+        "Backpack Only",
+    },
+    Default = "All",
+    Callback = function(val)
+        State.CageStatusFilter = val
+        State.NeedsCageRefresh = true
+    end,
+})
+
+CageFilterBox:AddButton({
+    Text = T("🐣 Hatch Ready Cages", "🐣 ฟักไข่ที่พร้อมทั้งหมด"),
+    Func = function()
+        local _, allCages = CollectCages()
+        local hatchedCount = 0
+        for _, cage in ipairs(allCages) do
+            if cage.IsReady and OpenCageRemote then
+                OpenCageRemote:FireServer(cage.Id)
+                hatchedCount = hatchedCount + 1
+            end
+        end
+        if hatchedCount > 0 then
+            Library:Notify("Incubator", string.format("Hatched %d ready cage(s)!", hatchedCount), 3, "Success")
+        else
+            Library:Notify("Incubator", "No cages ready to hatch.", 2, "Info")
+        end
+    end,
+})
+
+CageFilterBox:AddButton({
+    Text = T("🔄 Refresh Cages", "🔄 รีเฟรชกรง"),
+    Func = function()
+        State.NeedsCageRefresh = true
+    end,
+})
+
+local CageListBox = CagesTab:AddRightGroupbox(T("Incubator Cards", "รายการไข่รอฟัก"), "oneup")
+local CageChild = CageListBox:AddChild({ Height = 440 })
+local CageScroll = CageChild.Host
+CageScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+CageScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+CageScroll.ScrollBarThickness = 6
+CageScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+
+local CageLayout = Instance.new("UIListLayout")
+CageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+CageLayout.Padding = UDim.new(0, 6)
+CageLayout.Parent = CageScroll
+
+-- 4. Bag Cages Tab (วางไข่ในกระเป๋า)
+local BagCagesTab = Window:AddTab(T("Bag Cages", "วางไข่ในกระเป๋า"), "egg", T("Place backpack cages into stalls", "นำไข่ในกระเป๋าไปวางลงคอก"))
+
+local BagControlsBox = BagCagesTab:AddLeftGroupbox(T("Placement Controls", "การควบคุมการวางไข่"), "star")
+
+local LblBagCagesCount = BagControlsBox:AddLabel(T("Backpack Cages: Calculating...", "ไข่ในกระเป๋า: กำลังคำนวณ..."))
+local LblEmptyStallsCount = BagControlsBox:AddLabel(T("Empty Stalls: Calculating...", "คอกว่าง: กำลังคำนวณ..."))
+local LblPetStallsCount = BagControlsBox:AddLabel(T("Pet Stalls (Replaceable): Calculating...", "คอกสัตว์ (แทนที่ได้): กำลังคำนวณ..."))
+
+BagControlsBox:AddDropdown("BagPlaceStrategy", {
+    Text = T("Placement Strategy", "กลยุทธ์การวาง"),
+    Values = {
+        "Empty First, Then Lowest Pet",
+        "Empty Stalls Only",
+        "Replace Lowest Pet Only",
+    },
+    Default = "Empty First, Then Lowest Pet",
+    Callback = function(val)
+        State.BagPlaceStrategy = val
+    end,
+})
+
+BagControlsBox:AddButton({
+    Text = T("🚀 Auto Place All Cages", "🚀 นำไข่ทั้งหมดไปวางอัตโนมัติ"),
+    Func = function()
+        AutoPlaceAllCages()
+    end,
+})
+
+BagControlsBox:AddButton({
+    Text = T("📦 Store All Pets to Bag", "📦 เก็บสัตว์ทั้งหมดกลับกระเป๋า"),
+    Func = function()
+        StoreAllPets()
+    end,
+})
+
+BagControlsBox:AddToggle("BagAutoStoreToggle", {
+    Text = T("Auto Store Pets", "ถอดสัตว์อัตโนมัติ"),
+    Default = false,
+    Callback = function(val)
+        State.AutoStorePets = val
+        if val then
+            Library:Notify("Auto Store", "Auto-storing pets is now ACTIVE", 2, "Info")
+        end
+    end,
+})
+
+BagControlsBox:AddButton({
+    Text = T("🔄 Refresh Bag Cages", "🔄 รีเฟรชรายการไข่"),
+    Func = function()
+        State.NeedsBagRefresh = true
+    end,
+})
+
+local BagListBox = BagCagesTab:AddRightGroupbox(T("Backpack Cages", "รายการไข่ในกระเป๋า"), "egg")
+local BagChild = BagListBox:AddChild({ Height = 440 })
+local BagScroll = BagChild.Host
+BagScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+BagScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+BagScroll.ScrollBarThickness = 6
+BagScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+
+local BagLayout = Instance.new("UIListLayout")
+BagLayout.SortOrder = Enum.SortOrder.LayoutOrder
+BagLayout.Padding = UDim.new(0, 6)
+BagLayout.Parent = BagScroll
+
+-- 5. Auto Steal Tab (Simwalk เก็บไข่อัตโนมัติ - ห้ามวาร์ป 100%)
+Window:AddTabSection(T("Automation", "ระบบอัตโนมัติ"))
+local StealTab = Window:AddTab(T("Auto Steal", "เก็บไข่ (Simwalk)"), "star", T("Human-like walking egg stealer (Ban-Free)", "เดินเก็บไข่แบบคนเล่น ห้ามวาร์ป 100%"))
+
+local StealControlsBox = StealTab:AddLeftGroupbox(T("Steal Controls", "การควบคุมการเก็บไข่"), "star")
+
+LblStealStatus = StealControlsBox:AddLabel(T("Status: Idle", "สถานะ: พร้อมทำงาน"))
+LblStealTargetInfo = StealControlsBox:AddLabel(T("Target: None", "เป้าหมาย: -"))
+
+StealControlsBox:AddToggle("AutoStealToggle", {
+    Text = T("Auto Steal Cages (Simwalk)", "เปิดระบบเดินเก็บไข่อัตโนมัติ"),
+    Default = false,
+    Callback = function(val)
+        State.AutoStealCages = val
+        if val then
+            State.IsStealingActive = true
+            Library:Notify("Auto Steal", "Auto Steal ACTIVE (100% Ban-Free Simwalk, No Teleport)", 3, "Success")
+        else
+            State.IsStealingActive = false
+            if LblStealStatus then
+                LblStealStatus:SetText("Status: Idle")
+            end
+            Library:Notify("Auto Steal", "Auto Steal paused.", 2, "Info")
+        end
+    end,
+})
+
+StealControlsBox:AddDropdown("StealRarity", {
+    Text = T("Target Rarity", "ระดับความหายากที่ต้องการ"),
+    Values = {
+        "Any", "Singularity+", "Singularity", "Omega", "Astral",
+        "Infinity", "Divine", "Eternal", "Secret", "Cosmic",
+        "Mythic", "Legendary", "Epic", "Common"
+    },
+    Default = "Any",
+    Callback = function(val)
+        State.StealTargetRarity = val
+    end,
+})
+
+StealControlsBox:AddDropdown("StealMinPath", {
+    Text = T("Min Map Tier / Path", "ระดับแมพขั้นต่ำ (Path)"),
+    Values = {
+        "Path 1", "Path 2", "Path 3", "Path 4", "Path 5",
+        "Path 6", "Path 7", "Path 8", "Path 9", "Path 10",
+        "Path 11", "Path 12", "Path 13", "Path 14", "Path 15",
+        "Path 16", "Path 17", "Path 18", "Path 19", "Path 20",
+        "Path 21", "Path 22"
+    },
+    Default = "Path 11",
+    Callback = function(val)
+        State.StealMinPath = val
+    end,
+})
+
+StealControlsBox:AddDropdown("StealStrategy", {
+    Text = T("Steal Strategy", "กลยุทธ์การเลือกไข่"),
+    Values = {
+        "Highest Tier First",
+        "Nearest First",
+    },
+    Default = "Highest Tier First",
+    Callback = function(val)
+        State.StealStrategy = val
+    end,
+})
+
+StealControlsBox:AddToggle("StealAutoPlaceToggle", {
+    Text = T("Auto Place When Returned", "วางลงคอกอัตโนมัติเมื่อกลับถึงฐาน"),
+    Default = true,
+    Callback = function(val)
+        State.StealAutoPlace = val
+    end,
+})
+
+StealControlsBox:AddButton({
+    Text = T("⚡ Steal 1 Target Cage (Simwalk)", "⚡ เดินไปขโมย 1 ใบ (ทดสอบ)"),
+    Func = function()
+        RunStealCycle(nil, true)
+    end,
+})
+
+StealControlsBox:AddButton({
+    Text = T("🛑 Stop Walking Immediately", "🛑 หยุดเดินทันที"),
+    Func = function()
+        StopStealWalking()
+    end,
+})
+
+local RadarBox = StealTab:AddRightGroupbox(T("World Cages Radar", "เรดาร์ตรวจจับไข่ในโลก"), "flower")
+LblRadarSummary = RadarBox:AddLabel(T("Detected World Cages: Calculating...", "ไข่ที่ตรวจพบในโลก: กำลังค้นหา..."))
+
+local RadarChild = RadarBox:AddChild({ Height = 410 })
+RadarScroll = RadarChild.Host
+RadarScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+RadarScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+RadarScroll.ScrollBarThickness = 6
+RadarScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+
+local RadarLayout = Instance.new("UIListLayout")
+RadarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+RadarLayout.Padding = UDim.new(0, 6)
+RadarLayout.Parent = RadarScroll
+
+-- ============================================================================
+-- 6. Halloween Event Tab 🎃
+-- ============================================================================
+
+local CandyShopItems = {
+    ["Spooky Cage (40,000 🍬)"] = { Key = "SpookyCage", Price = 40000, Place = 3, Name = "Spooky Cage", Info = "Your best biome's spooky cage (Max 10/day)" },
+    ["Halloween Potion (25,000 🍬)"] = { Key = "HalloweenPotion", Price = 25000, Place = 1, Name = "Halloween Potion", Info = "2x Money & Treadmill 15 mins (Max 2/day)" },
+    ["Candy Talisman (750,000 🍬)"] = { Key = "CandyTalisman", Price = 750000, Place = 7, Name = "Candy Talisman", Info = "+50% Candy income" },
+    ["Phantom Sabertooth (2,500,000 🍬)"] = { Key = "PhantomSabertooth", Price = 2500000, Place = 9, Name = "Phantom Sabertooth", Info = "LIMITED PET • 2.75x best pet cash" },
+    ["Candy King Title (300,000 🍬)"] = { Key = "CandyKing", Price = 300000, Place = 5, Name = "Candy King", Info = "Exclusive Event Title: Candy King" },
+    ["Haunted Barn Skin (4,500,000 🍬)"] = { Key = "HauntedBarn", Price = 4500000, Place = 11, Name = "Haunted Barn", Info = "LIMITED Barn Skin: Haunted Barn" },
+    ["Extra Boss Drop (10,000,000 🍬)"] = { Key = "ExtraDrop", Price = 10000000, Place = 4, Name = "Extra Boss Drop", Info = "+1 Drop from every boss" },
+    ["Candy Rush Potion (5,000,000 🍬)"] = { Key = "CandyRush", Price = 5000000, Place = 2, Name = "Candy Rush Potion", Info = "2x Candies in fights (3 portal attacks)" },
+    ["Candy Emperor Title (150,000,000 🍬)"] = { Key = "CandyEmperor", Price = 150000000, Place = 6, Name = "Candy Emperor", Info = "Exclusive High-Tier Event Title" },
+    ["Boss Luck Talisman (300,000,000 🍬)"] = { Key = "BossLuckTalisman", Price = 300000000, Place = 8, Name = "Boss Luck Talisman", Info = "2x Boss Drop Luck" },
+    ["Soulfire Phoenix (600,000,000 🍬)"] = { Key = "SoulfirePhoenix", Price = 600000000, Place = 10, Name = "Soulfire Phoenix", Info = "LIMITED PET • 3.0x best pet cash" },
+    ["Hollow King's Castle (1,000,000,000 🍬)"] = { Key = "HollowCastle", Price = 1000000000, Place = 12, Name = "Hollow King's Castle", Info = "Ultra Limited Barn Skin" },
+}
+
+local CandyShopItemNames = {
+    "Spooky Cage (40,000 🍬)",
+    "Halloween Potion (25,000 🍬)",
+    "Candy Talisman (750,000 🍬)",
+    "Phantom Sabertooth (2,500,000 🍬)",
+    "Candy King Title (300,000 🍬)",
+    "Haunted Barn Skin (4,500,000 🍬)",
+    "Extra Boss Drop (10,000,000 🍬)",
+    "Candy Rush Potion (5,000,000 🍬)",
+    "Candy Emperor Title (150,000,000 🍬)",
+    "Boss Luck Talisman (300,000,000 🍬)",
+    "Soulfire Phoenix (600,000,000 🍬)",
+    "Hollow King's Castle (1,000,000,000 🍬)",
+}
+
+local function GetPlayerCandy()
+    local candyAttr = LocalPlayer:GetAttribute("Candy")
+    if candyAttr ~= nil then
+        return tonumber(candyAttr) or 0
+    end
+    local ls = LocalPlayer:FindFirstChild("leaderstats")
+    if ls and ls:FindFirstChild("Candy") then
+        return tonumber(ls.Candy.Value) or 0
+    end
+    if LocalPlayer:FindFirstChild("Candy") then
+        return tonumber(LocalPlayer.Candy.Value) or 0
+    end
+    return 0
+end
+
+local function CalculateCandyRate()
+    local rateTable = {
+        ["Singularity"] = 18,
+        ["Omega"] = 16,
+        ["Astral"] = 14,
+        ["Infinity"] = 12,
+        ["Divine"] = 11,
+        ["Eternal"] = 10,
+        ["Secret"] = 9,
+        ["Cosmic"] = 8,
+        ["Mythic"] = 7,
+        ["Legendary"] = 5,
+        ["Epic"] = 3,
+        ["Rare"] = 2,
+        ["Uncommon"] = 1.5,
+        ["Common"] = 1,
+    }
+    local _, allPets = CollectPets()
+    local totalRate = 0
+    for _, pet in ipairs(allPets) do
+        if pet.InStall then
+            local r = rateTable[pet.Rarity] or 1
+            totalRate = totalRate + r
+        end
+    end
+    if LocalPlayer:GetAttribute("DoubleCandy") or LocalPlayer:GetAttribute("HasDoubleCandy") then
+        totalRate = totalRate * 2
+    end
+    return totalRate
+end
+
+local function BuyCandyShopItem(itemName)
+    if not BuyCandyRemote then
+        return false, "BuyCandyItem remote not found"
+    end
+    local item = CandyShopItems[itemName]
+    if not item then
+        return false, "Item not found in catalog"
+    end
+    pcall(function()
+        BuyCandyRemote:FireServer(item.Key)
+    end)
+    pcall(function()
+        BuyCandyRemote:FireServer(item.Place)
+    end)
+    return true, string.format("Purchased %s!", item.Name)
+end
+
+Window:AddTabSection(T("Halloween Event 🎃", "เทศกาลฮาโลวีน 🎃"))
+local HalloweenTab = Window:AddTab(T("Halloween 🎃", "ฮาโลวีน 🎃"), "flame", T("Candy farm, Halloween Shop, & Spooky Cages", "ฟาร์มลูกอม ร้านค้าฮาโลวีน และกรงผี"))
+
+local HalloweenStatusBox = HalloweenTab:AddLeftGroupbox(T("Event Status & Candy", "สถานะกิจกรรมและลูกอม"), "star")
+local LblHalloweenEventStatus = HalloweenStatusBox:AddLabel(T("Event Status: 🎃 LIVE NOW!", "สถานะ: 🎃 กำลังจัดกิจกรรม!"))
+local LblCandyBalance = HalloweenStatusBox:AddLabel(T("🍬 Candy Balance: Calculating...", "🍬 ลูกอมคงเหลือ: กำลังคำนวณ..."))
+local LblCandyRate = HalloweenStatusBox:AddLabel(T("⚡ Candy Income: Calculating...", "⚡ อัตราผลิตลูกอม: กำลังคำนวณ..."))
+local LblSpookyMutationInfo = HalloweenStatusBox:AddLabel(T("🌙 Spooky Mutation: Active (Every 20-30s)", "🌙 กลายพันธุ์ Spooky: ทำงาน (ทุก 20-30 วิ)"))
+
+HalloweenStatusBox:AddButton({
+    Text = T("🔄 Refresh Candy Stats", "🔄 รีเฟรชข้อมูลลูกอม"),
+    Func = function()
+        State.NeedsHalloweenRefresh = true
+    end,
+})
+
+local CandyShopBox = HalloweenTab:AddLeftGroupbox(T("Halloween Candy Shop", "ร้านค้าแลกลูกอม"), "shopping-cart")
+local LblSelectedShopItemInfo = CandyShopBox:AddLabel(T("Cost: 40,000 🍬 | Daily: 10 max", "ราคา: 40,000 🍬 | ซื้อได้: วันละ 10 ครั้ง"))
+
+CandyShopBox:AddDropdown("CandyShopSelect", {
+    Text = T("Select Shop Item", "เลือกสินค้าที่ต้องการซื้อ"),
+    Values = CandyShopItemNames,
+    Default = "Spooky Cage (40,000 🍬)",
+    Callback = function(val)
+        State.SelectedCandyItem = val
+        local item = CandyShopItems[val]
+        if item and LblSelectedShopItemInfo then
+            LblSelectedShopItemInfo:SetText(string.format("Cost: %s 🍬 | %s", FormatNumber(item.Price), item.Info))
+        end
+    end,
+})
+
+CandyShopBox:AddToggle("AutoBuyCandyToggle", {
+    Text = T("Auto Buy Selected Item", "ซื้อสินค้าที่เลือกอัตโนมัติ"),
+    Default = false,
+    Callback = function(val)
+        State.AutoBuyCandy = val
+        if val then
+            Library:Notify("Candy Shop", "Auto-buy candy item is ACTIVE", 2, "Success")
+        else
+            Library:Notify("Candy Shop", "Auto-buy paused.", 2, "Info")
+        end
+    end,
+})
+
+CandyShopBox:AddButton({
+    Text = T("🛒 Buy Selected Item Now", "🛒 ซื้อสินค้าที่เลือกทันที"),
+    Func = function()
+        local ok, msg = BuyCandyShopItem(State.SelectedCandyItem)
+        if ok then
+            Library:Notify("Candy Shop", msg, 2, "Success")
+            State.NeedsHalloweenRefresh = true
+        else
+            Library:Notify("Candy Shop", msg, 2, "Warn")
+        end
+    end,
+})
+
+local HalloweenOddsBox = HalloweenTab:AddRightGroupbox(T("Halloween Cage Pets (12)", "สัตว์เลี้ยงในกรงฮาโลวีน (12 ตัว)"), "shield")
+HalloweenOddsBox:AddLabel(T("⭐ Wendigo — Singularity (0.5% | 4.0x Cash)", "⭐ Wendigo — Singularity (0.5% | 4.0x เงิน)"))
+HalloweenOddsBox:AddLabel(T("🔴 Bone Dragon — Omega (2.5% | 3.3x Cash)", "🔴 Bone Dragon — Omega (2.5% | 3.3x เงิน)"))
+HalloweenOddsBox:AddLabel(T("🟣 Ghost Kitsune — Astral (3.5% | 2.75x Cash)", "🟣 Ghost Kitsune — Astral (3.5% | 2.75x เงิน)"))
+HalloweenOddsBox:AddLabel(T("🟣 Zombie Rex — Astral (3.5% | 2.7x Cash)", "🟣 Zombie Rex — Astral (3.5% | 2.7x เงิน)"))
+HalloweenOddsBox:AddLabel(T("🔷 Bone Mammoth — Infinity (6.5% | 2.25x Cash)", "🔷 Bone Mammoth — Infinity (6.5% | 2.25x เงิน)"))
+HalloweenOddsBox:AddLabel(T("🔷 Reaper Mantis — Infinity (6.5% | 2.2x Cash)", "🔷 Reaper Mantis — Infinity (6.5% | 2.2x เงิน)"))
+HalloweenOddsBox:AddLabel(T("🟡 Zombie Ape — Divine (10.5% | 1.85x Cash)", "🟡 Zombie Ape — Divine (10.5% | 1.85x เงิน)"))
+HalloweenOddsBox:AddLabel(T("🟡 Werewolf — Divine (10.5% | 1.8x Cash)", "🟡 Werewolf — Divine (10.5% | 1.8x เงิน)"))
+HalloweenOddsBox:AddLabel(T("💎 Plague Crow — Eternal (13% | 1.55x Cash)", "💎 Plague Crow — Eternal (13% | 1.55x เงิน)"))
+HalloweenOddsBox:AddLabel(T("💎 Coffin Mimic — Eternal (13% | 1.5x Cash)", "💎 Coffin Mimic — Eternal (13% | 1.5x เงิน)"))
+HalloweenOddsBox:AddLabel(T("⚪ Ghoul Hyena — Secret (15% | 1.25x Cash)", "⚪ Ghoul Hyena — Secret (15% | 1.25x เงิน)"))
+HalloweenOddsBox:AddLabel(T("⚪ Skeleton Hound — Secret (15% | 1.2x Cash)", "⚪ Skeleton Hound — Secret (15% | 1.2x เงิน)"))
+
+local CandyRatesBox = HalloweenTab:AddRightGroupbox(T("Candy / Second by Rarity", "อัตราลูกอมต่อวินาทีตาม Rarity"), "flower")
+CandyRatesBox:AddLabel(T("Singularity: +18 🍬/s  •  Omega: +16 🍬/s", "Singularity: +18 🍬/วิ  •  Omega: +16 🍬/วิ"))
+CandyRatesBox:AddLabel(T("Astral: +14 🍬/s  •  Infinity: +12 🍬/s", "Astral: +14 🍬/วิ  •  Infinity: +12 🍬/วิ"))
+CandyRatesBox:AddLabel(T("Divine: +11 🍬/s  •  Eternal: +10 🍬/s", "Divine: +11 🍬/วิ  •  Eternal: +10 🍬/วิ"))
+CandyRatesBox:AddLabel(T("Secret: +9 🍬/s  •  Cosmic: +8 🍬/s", "Secret: +9 🍬/วิ  •  Cosmic: +8 🍬/วิ"))
+CandyRatesBox:AddLabel(T("Mythic: +7 🍬/s  •  Legendary: +5 🍬/s", "Mythic: +7 🍬/วิ  •  Legendary: +5 🍬/วิ"))
+CandyRatesBox:AddLabel(T("Epic: +3 🍬/s  •  Rare: +2 🍬/s", "Epic: +3 🍬/วิ  •  Rare: +2 🍬/วิ"))
+CandyRatesBox:AddLabel(T("💡 Note: Pets placed in Stalls generate candy!", "💡 สัตว์เลี้ยงในคอกจะผลิตลูกอมให้อัตโนมัติ!"))
+
+local function UpdateHalloweenStats()
+    if not LblCandyBalance then return end
+    local candy = GetPlayerCandy()
+    local rate = CalculateCandyRate()
+    LblCandyBalance:SetText(string.format("🍬 Candy Balance: %s 🍬", FormatNumber(candy)))
+    LblCandyRate:SetText(string.format("⚡ Candy Income: +%s 🍬/sec (From Stalls)", FormatNumber(rate)))
+end
+
+-- Visuals & Settings
+Window:AddVisualsTab()
+Window:AddSettingsTab()
+
+-- ============================================================================
+-- Card Rendering Engine with LookCache & Reconciliation
+-- ============================================================================
+
+local function RenderPetsList()
+    local filtered, _ = CollectPets()
+
+    local seen = {}
+    for i, pet in ipairs(filtered) do
+        local cardName = "PetCard_" .. pet.Id
+        seen[cardName] = true
+        local card = PetScroll:FindFirstChild(cardName)
+
+        local rarityColor = RarityColors[pet.Rarity] or Color3.fromRGB(196, 202, 214)
+        local qualityColor = QualityColors[pet.Quality] or Color3.fromRGB(175, 185, 200)
+
+        if not card then
+            card = Instance.new("Frame")
+            card.Name = cardName
+            card.Size = UDim2.new(1, -6, 0, 72)
+            card.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+            card.BorderSizePixel = 0
+            card.LayoutOrder = i
+
+            local corner = Instance.new("UICorner", card)
+            corner.CornerRadius = UDim.new(0, 8)
+
+            local stroke = Instance.new("UIStroke", card)
+            stroke.Color = rarityColor
+            stroke.Thickness = 1.2
+            stroke.Transparency = 0.5
+            stroke.Name = "CardStroke"
+
+            -- 3D Viewport Preview
+            local vpf = Instance.new("ViewportFrame", card)
+            vpf.Name = "Preview"
+            vpf.Size = UDim2.new(0, 62, 0, 62)
+            vpf.Position = UDim2.new(0, 5, 0.5, -31)
+            vpf.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+            vpf.BorderSizePixel = 0
+            local vpfCorner = Instance.new("UICorner", vpf)
+            vpfCorner.CornerRadius = UDim.new(0, 6)
+
+            -- Pet Name
+            local nameLbl = Instance.new("TextLabel", card)
+            nameLbl.Name = "PetName"
+            nameLbl.Size = UDim2.new(1, -145, 0, 18)
+            nameLbl.Position = UDim2.new(0, 74, 0, 6)
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.Font = Enum.Font.GothamBold
+            nameLbl.TextSize = 13
+            nameLbl.TextColor3 = qualityColor
+            nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+            nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            nameLbl.Text = (pet.Quality ~= "Normal" and (pet.Quality .. " ") or "") .. pet.Kind
+
+            -- Income Label
+            local incomeLbl = Instance.new("TextLabel", card)
+            incomeLbl.Name = "IncomeLbl"
+            incomeLbl.Size = UDim2.new(1, -145, 0, 16)
+            incomeLbl.Position = UDim2.new(0, 74, 0, 26)
+            incomeLbl.BackgroundTransparency = 1
+            incomeLbl.Font = Enum.Font.Code
+            incomeLbl.TextSize = 12
+            incomeLbl.TextColor3 = Color3.fromRGB(120, 255, 120)
+            incomeLbl.TextXAlignment = Enum.TextXAlignment.Left
+            incomeLbl.Text = string.format("💰 Cash: $%s /s", FormatNumber(pet.Income))
+
+            -- Location & Rarity Badge
+            local badgeLbl = Instance.new("TextLabel", card)
+            badgeLbl.Name = "BadgeLbl"
+            badgeLbl.Size = UDim2.new(1, -145, 0, 16)
+            badgeLbl.Position = UDim2.new(0, 74, 0, 46)
+            badgeLbl.BackgroundTransparency = 1
+            badgeLbl.Font = Enum.Font.Gotham
+            badgeLbl.TextSize = 11
+            badgeLbl.TextColor3 = Color3.fromRGB(160, 170, 185)
+            badgeLbl.TextXAlignment = Enum.TextXAlignment.Left
+            local locText = pet.InStall and string.format("📍 Stall #%s", tostring(pet.Stall)) or "🎒 Backpack"
+            badgeLbl.Text = string.format("%s  •  %s", pet.Rarity, locText)
+
+            -- Store / Unequip Button on Card
+            local storeBtn = Instance.new("TextButton", card)
+            storeBtn.Name = "StoreBtn"
+            storeBtn.Size = UDim2.new(0, 58, 0, 30)
+            storeBtn.Position = UDim2.new(1, -64, 0.5, -15)
+            storeBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+            storeBtn.BorderSizePixel = 0
+            storeBtn.Font = Enum.Font.GothamBold
+            storeBtn.TextSize = 11
+            storeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            storeBtn.Text = "STORE"
+            storeBtn.Visible = pet.InStall
+            local btnCorner = Instance.new("UICorner", storeBtn)
+            btnCorner.CornerRadius = UDim.new(0, 6)
+
+            storeBtn.Activated:Connect(function()
+                if pet.Stall and StorePetRemote then
+                    storeBtn.Text = "..."
+                    StorePetRemote:FireServer(pet.Stall)
+                    Library:Notify("Store Pet", string.format("Stored %s from Stall #%d", pet.Kind, pet.Stall), 2, "Success")
+                    State.NeedsPetRefresh = true
+                    State.NeedsBagRefresh = true
+                end
+            end)
+
+            card.Parent = PetScroll
+        else
+            card.LayoutOrder = i
+            local stroke = card:FindFirstChild("CardStroke")
+            if stroke then stroke.Color = rarityColor end
+            local nameLbl = card:FindFirstChild("PetName")
+            if nameLbl then
+                nameLbl.TextColor3 = qualityColor
+                nameLbl.Text = (pet.Quality ~= "Normal" and (pet.Quality .. " ") or "") .. pet.Kind
+            end
+            local incomeLbl = card:FindFirstChild("IncomeLbl")
+            if incomeLbl then
+                incomeLbl.Text = string.format("💰 Cash: $%s /s", FormatNumber(pet.Income))
+            end
+            local badgeLbl = card:FindFirstChild("BadgeLbl")
+            if badgeLbl then
+                local locText = pet.InStall and string.format("📍 Stall #%s", tostring(pet.Stall)) or "🎒 Backpack"
+                badgeLbl.Text = string.format("%s  •  %s", pet.Rarity, locText)
+            end
+            local storeBtn = card:FindFirstChild("StoreBtn")
+            if storeBtn then
+                storeBtn.Visible = pet.InStall
+                storeBtn.Text = "STORE"
+            end
+        end
+
+        -- Populate ViewportFrame with Cached 3D Model
+        local vpf = card:FindFirstChild("Preview")
+        if vpf then
+            local cacheKey = pet.Kind .. "_" .. pet.Quality
+            PopulateViewport(vpf, "Pets", cacheKey, pet.Kind)
+        end
+    end
+
+    -- Remove unused cards
+    for _, ch in ipairs(PetScroll:GetChildren()) do
+        if ch:IsA("Frame") and ch.Name:find("PetCard_") and not seen[ch.Name] then
+            ch:Destroy()
+        end
+    end
+end
+
+local function RenderCagesList()
+    local filtered, _ = CollectCages()
+
+    local seen = {}
+    for i, cage in ipairs(filtered) do
+        local cardName = "CageCard_" .. cage.Id
+        seen[cardName] = true
+        local card = CageScroll:FindFirstChild(cardName)
+
+        local rarityColor = RarityColors[cage.Kind] or Color3.fromRGB(150, 226, 255)
+
+        local statusText = ""
+        local statusColor = Color3.fromRGB(160, 175, 195)
+        local barFillColor = Color3.fromRGB(80, 200, 255)
+        local barFillSize = UDim2.new(cage.Progress, 0, 1, 0)
+        local canHatch = false
+
+        if cage.IsReady then
+            statusText = string.format("✨ READY TO HATCH! (Stall #%s)", tostring(cage.Stall or "?"))
+            statusColor = Color3.fromRGB(255, 215, 0)
+            barFillColor = Color3.fromRGB(255, 215, 0)
+            barFillSize = UDim2.new(1, 0, 1, 0)
+            canHatch = true
+        elseif cage.IsIncubating then
+            statusText = string.format("⏳ %s (%.0f%%) • Stall #%s", FormatTime(cage.Remaining), cage.Progress * 100, tostring(cage.Stall or "?"))
+            statusColor = Color3.fromRGB(130, 215, 255)
+            barFillColor = Color3.fromRGB(80, 200, 255)
+            barFillSize = UDim2.new(cage.Progress, 0, 1, 0)
+            canHatch = false
+        else
+            statusText = "🎒 In Backpack (Not Incubating)"
+            statusColor = Color3.fromRGB(160, 170, 185)
+            barFillColor = Color3.fromRGB(50, 55, 70)
+            barFillSize = UDim2.new(0, 0, 1, 0)
+            canHatch = false
+        end
+
+        local cageTitle = cage.Kind .. " Cage" .. (cage.Stall and string.format(" [#%s]", tostring(cage.Stall)) or " (Backpack)")
+
+        if not card then
+            card = Instance.new("Frame")
+            card.Name = cardName
+            card.Size = UDim2.new(1, -6, 0, 72)
+            card.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+            card.BorderSizePixel = 0
+            card.LayoutOrder = i
+
+            local corner = Instance.new("UICorner", card)
+            corner.CornerRadius = UDim.new(0, 8)
+
+            local stroke = Instance.new("UIStroke", card)
+            stroke.Color = rarityColor
+            stroke.Thickness = 1.2
+            stroke.Transparency = 0.5
+            stroke.Name = "CardStroke"
+
+            -- 3D Viewport Preview
+            local vpf = Instance.new("ViewportFrame", card)
+            vpf.Name = "Preview"
+            vpf.Size = UDim2.new(0, 62, 0, 62)
+            vpf.Position = UDim2.new(0, 5, 0.5, -31)
+            vpf.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+            vpf.BorderSizePixel = 0
+            local vpfCorner = Instance.new("UICorner", vpf)
+            vpfCorner.CornerRadius = UDim.new(0, 6)
+
+            -- Cage Name
+            local nameLbl = Instance.new("TextLabel", card)
+            nameLbl.Name = "CageName"
+            nameLbl.Size = UDim2.new(1, -170, 0, 18)
+            nameLbl.Position = UDim2.new(0, 74, 0, 6)
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.Font = Enum.Font.GothamBold
+            nameLbl.TextSize = 13
+            nameLbl.TextColor3 = rarityColor
+            nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+            nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            nameLbl.Text = cageTitle
+
+            -- Progress Bar BG
+            local barBg = Instance.new("Frame", card)
+            barBg.Name = "BarBg"
+            barBg.Size = UDim2.new(1, -170, 0, 8)
+            barBg.Position = UDim2.new(0, 74, 0, 30)
+            barBg.BackgroundColor3 = Color3.fromRGB(28, 32, 45)
+            barBg.BorderSizePixel = 0
+            local barBgCorner = Instance.new("UICorner", barBg)
+            barBgCorner.CornerRadius = UDim.new(1, 0)
+
+            -- Progress Bar Fill
+            local barFill = Instance.new("Frame", barBg)
+            barFill.Name = "BarFill"
+            barFill.Size = barFillSize
+            barFill.BackgroundColor3 = barFillColor
+            barFill.BorderSizePixel = 0
+            local barFillCorner = Instance.new("UICorner", barFill)
+            barFillCorner.CornerRadius = UDim.new(1, 0)
+
+            -- Status Label (Timer & Status)
+            local statusLbl = Instance.new("TextLabel", card)
+            statusLbl.Name = "StatusLbl"
+            statusLbl.Size = UDim2.new(1, -170, 0, 16)
+            statusLbl.Position = UDim2.new(0, 74, 0, 46)
+            statusLbl.BackgroundTransparency = 1
+            statusLbl.Font = Enum.Font.Gotham
+            statusLbl.TextSize = 11
+            statusLbl.TextColor3 = statusColor
+            statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+            statusLbl.Text = statusText
+
+            -- Teleport Button to this specific Cage
+            local tpBtn = Instance.new("TextButton", card)
+            tpBtn.Name = "TpBtn"
+            tpBtn.Size = UDim2.new(0, 36, 0, 30)
+            tpBtn.Position = UDim2.new(1, -104, 0.5, -15)
+            tpBtn.BackgroundColor3 = Color3.fromRGB(30, 50, 80)
+            tpBtn.BorderSizePixel = 0
+            tpBtn.Font = Enum.Font.GothamBold
+            tpBtn.TextSize = 12
+            tpBtn.TextColor3 = Color3.fromRGB(140, 210, 255)
+            tpBtn.Text = "TP"
+            tpBtn.Visible = (cage.Stall ~= nil)
+            local tpCorner = Instance.new("UICorner", tpBtn)
+            tpCorner.CornerRadius = UDim.new(0, 6)
+
+            tpBtn.Activated:Connect(function()
+                if cage.LiveCage then
+                    local root = cage.LiveCage:FindFirstChild("Root") or cage.LiveCage.PrimaryPart or cage.LiveCage:FindFirstChildWhichIsA("BasePart")
+                    if root then
+                        TeleportTo(root.CFrame + Vector3.new(0, 3, 4))
+                        Library:Notify("Teleport", "Teleported to " .. cage.Kind .. " Cage!", 2, "Success")
+                        return
+                    end
+                end
+                -- Fallback to general incubator
+                TeleportToIncubator()
+                Library:Notify("Teleport", "Teleported to Cages area!", 2, "Info")
+            end)
+
+            -- Hatch Button on Card
+            local hatchBtn = Instance.new("TextButton", card)
+            hatchBtn.Name = "HatchBtn"
+            hatchBtn.Size = UDim2.new(0, 58, 0, 30)
+            hatchBtn.Position = UDim2.new(1, -62, 0.5, -15)
+            hatchBtn.BackgroundColor3 = canHatch and Color3.fromRGB(255, 190, 40) or Color3.fromRGB(36, 40, 52)
+            hatchBtn.BorderSizePixel = 0
+            hatchBtn.Font = Enum.Font.GothamBold
+            hatchBtn.TextSize = 11
+            hatchBtn.TextColor3 = canHatch and Color3.fromRGB(20, 20, 20) or Color3.fromRGB(110, 115, 130)
+            hatchBtn.Text = canHatch and "HATCH" or "WAIT"
+            hatchBtn.AutoButtonColor = canHatch
+            local btnCorner = Instance.new("UICorner", hatchBtn)
+            btnCorner.CornerRadius = UDim.new(0, 6)
+
+            hatchBtn.Activated:Connect(function()
+                if cage.IsReady and OpenCageRemote then
+                    OpenCageRemote:FireServer(cage.Id)
+                    Library:Notify("Incubator", "Hatched " .. cage.Kind .. " Cage!", 2, "Success")
+                end
+            end)
+
+            card.Parent = CageScroll
+        else
+            card.LayoutOrder = i
+            local stroke = card:FindFirstChild("CardStroke")
+            if stroke then stroke.Color = rarityColor end
+
+            local nameLbl = card:FindFirstChild("CageName")
+            if nameLbl then
+                nameLbl.TextColor3 = rarityColor
+                nameLbl.Text = cageTitle
+            end
+
+            local barFill = card:FindFirstChild("BarBg") and card.BarBg:FindFirstChild("BarFill")
+            if barFill then
+                barFill.Size = barFillSize
+                barFill.BackgroundColor3 = barFillColor
+            end
+
+            local statusLbl = card:FindFirstChild("StatusLbl")
+            if statusLbl then
+                statusLbl.TextColor3 = statusColor
+                statusLbl.Text = statusText
+            end
+
+            local hatchBtn = card:FindFirstChild("HatchBtn")
+            if hatchBtn then
+                hatchBtn.BackgroundColor3 = canHatch and Color3.fromRGB(255, 190, 40) or Color3.fromRGB(36, 40, 52)
+                hatchBtn.TextColor3 = canHatch and Color3.fromRGB(20, 20, 20) or Color3.fromRGB(110, 115, 130)
+                hatchBtn.Text = canHatch and "HATCH" or "WAIT"
+                hatchBtn.AutoButtonColor = canHatch
+            end
+
+            local tpBtn = card:FindFirstChild("TpBtn")
+            if tpBtn then
+                tpBtn.Text = "TP"
+                tpBtn.Visible = (cage.Stall ~= nil)
+            end
+        end
+
+        -- Populate ViewportFrame with Cached 3D Model
+        local vpf = card:FindFirstChild("Preview")
+        if vpf then
+            PopulateViewport(vpf, "Cages", cage.Kind, cage.Kind)
+        end
+    end
+
+    -- Remove unused cards
+    for _, ch in ipairs(CageScroll:GetChildren()) do
+        if ch:IsA("Frame") and ch.Name:find("CageCard_") and not seen[ch.Name] then
+            ch:Destroy()
+        end
+    end
+end
+
+local function RenderBagCagesList()
+    local bagCages = CollectBagCages()
+    local seen = {}
+
+    if #bagCages == 0 then
+        local emptyCard = BagScroll:FindFirstChild("EmptyBagPlaceholder")
+        if not emptyCard then
+            emptyCard = Instance.new("Frame")
+            emptyCard.Name = "EmptyBagPlaceholder"
+            emptyCard.Size = UDim2.new(1, -6, 0, 60)
+            emptyCard.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+            emptyCard.BorderSizePixel = 0
+
+            local corner = Instance.new("UICorner", emptyCard)
+            corner.CornerRadius = UDim.new(0, 8)
+
+            local stroke = Instance.new("UIStroke", emptyCard)
+            stroke.Color = Color3.fromRGB(50, 55, 70)
+            stroke.Thickness = 1
+
+            local emptyLbl = Instance.new("TextLabel", emptyCard)
+            emptyLbl.Size = UDim2.new(1, 0, 1, 0)
+            emptyLbl.BackgroundTransparency = 1
+            emptyLbl.Font = Enum.Font.GothamMedium
+            emptyLbl.TextSize = 13
+            emptyLbl.TextColor3 = Color3.fromRGB(160, 170, 185)
+            emptyLbl.Text = "🎒 No cages in your backpack right now"
+            emptyCard.Parent = BagScroll
+        end
+        seen["EmptyBagPlaceholder"] = true
+    else
+        local emptyCard = BagScroll:FindFirstChild("EmptyBagPlaceholder")
+        if emptyCard then emptyCard:Destroy() end
+    end
+
+    for i, cage in ipairs(bagCages) do
+        local cardName = "BagCageCard_" .. cage.Id
+        seen[cardName] = true
+        local card = BagScroll:FindFirstChild(cardName)
+
+        local rarityColor = RarityColors[cage.Kind] or Color3.fromRGB(150, 226, 255)
+        local oddsSummary = FormatCageOdds(cage.Odds)
+        local timeText = FormatTime(cage.Duration)
+
+        if not card then
+            card = Instance.new("Frame")
+            card.Name = cardName
+            card.Size = UDim2.new(1, -6, 0, 72)
+            card.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+            card.BorderSizePixel = 0
+            card.LayoutOrder = i
+
+            local corner = Instance.new("UICorner", card)
+            corner.CornerRadius = UDim.new(0, 8)
+
+            local stroke = Instance.new("UIStroke", card)
+            stroke.Color = rarityColor
+            stroke.Thickness = 1.2
+            stroke.Transparency = 0.5
+            stroke.Name = "CardStroke"
+
+            -- 3D Viewport Preview
+            local vpf = Instance.new("ViewportFrame", card)
+            vpf.Name = "Preview"
+            vpf.Size = UDim2.new(0, 62, 0, 62)
+            vpf.Position = UDim2.new(0, 5, 0.5, -31)
+            vpf.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+            vpf.BorderSizePixel = 0
+            local vpfCorner = Instance.new("UICorner", vpf)
+            vpfCorner.CornerRadius = UDim.new(0, 6)
+
+            -- Cage Name
+            local nameLbl = Instance.new("TextLabel", card)
+            nameLbl.Name = "CageName"
+            nameLbl.Size = UDim2.new(1, -150, 0, 18)
+            nameLbl.Position = UDim2.new(0, 74, 0, 6)
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.Font = Enum.Font.GothamBold
+            nameLbl.TextSize = 13
+            nameLbl.TextColor3 = rarityColor
+            nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+            nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            nameLbl.Text = cage.Kind .. " Cage" .. (cage.Path and string.format(" (Tier %s)", tostring(cage.Path)) or "")
+
+            -- Duration info
+            local durLbl = Instance.new("TextLabel", card)
+            durLbl.Name = "DurLbl"
+            durLbl.Size = UDim2.new(1, -150, 0, 16)
+            durLbl.Position = UDim2.new(0, 74, 0, 26)
+            durLbl.BackgroundTransparency = 1
+            durLbl.Font = Enum.Font.Gotham
+            durLbl.TextSize = 11
+            durLbl.TextColor3 = Color3.fromRGB(130, 215, 255)
+            durLbl.TextXAlignment = Enum.TextXAlignment.Left
+            durLbl.Text = string.format("⏳ Hatch Time: %s", timeText)
+
+            -- Odds info
+            local oddsLbl = Instance.new("TextLabel", card)
+            oddsLbl.Name = "OddsLbl"
+            oddsLbl.Size = UDim2.new(1, -150, 0, 16)
+            oddsLbl.Position = UDim2.new(0, 74, 0, 46)
+            oddsLbl.BackgroundTransparency = 1
+            oddsLbl.Font = Enum.Font.Gotham
+            oddsLbl.TextSize = 10
+            oddsLbl.TextColor3 = Color3.fromRGB(160, 170, 185)
+            oddsLbl.TextXAlignment = Enum.TextXAlignment.Left
+            oddsLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            oddsLbl.Text = "🎲 " .. oddsSummary
+
+            -- Place Button
+            local placeBtn = Instance.new("TextButton", card)
+            placeBtn.Name = "PlaceBtn"
+            placeBtn.Size = UDim2.new(0, 64, 0, 32)
+            placeBtn.Position = UDim2.new(1, -70, 0.5, -16)
+            placeBtn.BackgroundColor3 = Color3.fromRGB(45, 120, 240)
+            placeBtn.BorderSizePixel = 0
+            placeBtn.Font = Enum.Font.GothamBold
+            placeBtn.TextSize = 12
+            placeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            placeBtn.Text = "PLACE"
+            local btnCorner = Instance.new("UICorner", placeBtn)
+            btnCorner.CornerRadius = UDim.new(0, 6)
+
+            placeBtn.Activated:Connect(function()
+                placeBtn.Text = "..."
+                task.spawn(function()
+                    local ok, msg = PlaceCageIntoStall(cage.Id, nil)
+                    if ok then
+                        Library:Notify("Place Cage", msg, 2, "Success")
+                    else
+                        Library:Notify("Place Cage", msg, 3, "Warn")
+                        placeBtn.Text = "PLACE"
+                    end
+                end)
+            end)
+
+            card.Parent = BagScroll
+        else
+            card.LayoutOrder = i
+            local stroke = card:FindFirstChild("CardStroke")
+            if stroke then stroke.Color = rarityColor end
+
+            local nameLbl = card:FindFirstChild("CageName")
+            if nameLbl then
+                nameLbl.TextColor3 = rarityColor
+                nameLbl.Text = cage.Kind .. " Cage" .. (cage.Path and string.format(" (Tier %s)", tostring(cage.Path)) or "")
+            end
+
+            local durLbl = card:FindFirstChild("DurLbl")
+            if durLbl then
+                durLbl.Text = string.format("⏳ Hatch Time: %s", timeText)
+            end
+
+            local oddsLbl = card:FindFirstChild("OddsLbl")
+            if oddsLbl then
+                oddsLbl.Text = "🎲 " .. oddsSummary
+            end
+        end
+
+        local vpf = card:FindFirstChild("Preview")
+        if vpf then
+            PopulateViewport(vpf, "Cages", cage.Kind, cage.Kind)
+        end
+    end
+
+    for _, ch in ipairs(BagScroll:GetChildren()) do
+        if ch:IsA("Frame") and (ch.Name:find("BagCageCard_") or ch.Name == "EmptyBagPlaceholder") and not seen[ch.Name] then
+            ch:Destroy()
+        end
+    end
+end
+
+local function RenderRadarList()
+    if not RadarScroll then return end
+    local cages = GetAvailableWorldCages()
+    table.sort(cages, function(a, b)
+        if a.Path ~= b.Path then
+            return a.Path > b.Path
+        end
+        return a.Distance < b.Distance
+    end)
+
+    if LblRadarSummary then
+        LblRadarSummary:SetText(string.format("Detected World Cages: %d available in world", #cages))
+    end
+
+    local seen = {}
+    for i, cage in ipairs(cages) do
+        local cardName = "RadarCageCard_" .. cage.Kind .. "_" .. tostring(cage.Path) .. "_" .. tostring(math.floor(cage.Position.X))
+        seen[cardName] = true
+        local card = RadarScroll:FindFirstChild(cardName)
+        local rarityColor = RarityColors[cage.Kind] or Color3.fromRGB(150, 226, 255)
+
+        if not card then
+            card = Instance.new("Frame")
+            card.Name = cardName
+            card.Size = UDim2.new(1, -6, 0, 68)
+            card.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+            card.BorderSizePixel = 0
+            card.LayoutOrder = i
+
+            local corner = Instance.new("UICorner", card)
+            corner.CornerRadius = UDim.new(0, 8)
+
+            local stroke = Instance.new("UIStroke", card)
+            stroke.Color = rarityColor
+            stroke.Thickness = 1.2
+            stroke.Transparency = 0.5
+            stroke.Name = "CardStroke"
+
+            -- Viewport
+            local vpf = Instance.new("ViewportFrame", card)
+            vpf.Name = "Preview"
+            vpf.Size = UDim2.new(0, 56, 0, 56)
+            vpf.Position = UDim2.new(0, 6, 0.5, -28)
+            vpf.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+            vpf.BorderSizePixel = 0
+            local vpfCorner = Instance.new("UICorner", vpf)
+            vpfCorner.CornerRadius = UDim.new(0, 6)
+
+            -- Cage Name
+            local nameLbl = Instance.new("TextLabel", card)
+            nameLbl.Name = "CageName"
+            nameLbl.Size = UDim2.new(1, -165, 0, 18)
+            nameLbl.Position = UDim2.new(0, 68, 0, 8)
+            nameLbl.BackgroundTransparency = 1
+            nameLbl.Font = Enum.Font.GothamBold
+            nameLbl.TextSize = 13
+            nameLbl.TextColor3 = rarityColor
+            nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+            nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+            nameLbl.Text = cage.Kind .. " Cage"
+
+            -- Tier & Dist Lbl
+            local infoLbl = Instance.new("TextLabel", card)
+            infoLbl.Name = "InfoLbl"
+            infoLbl.Size = UDim2.new(1, -165, 0, 16)
+            infoLbl.Position = UDim2.new(0, 68, 0, 28)
+            infoLbl.BackgroundTransparency = 1
+            infoLbl.Font = Enum.Font.Gotham
+            infoLbl.TextSize = 11
+            infoLbl.TextColor3 = Color3.fromRGB(130, 215, 255)
+            infoLbl.TextXAlignment = Enum.TextXAlignment.Left
+            infoLbl.Text = string.format("📍 Path %d  •  %.0f studs", cage.Path, cage.Distance)
+
+            -- Steal button
+            local stealBtn = Instance.new("TextButton", card)
+            stealBtn.Name = "StealBtn"
+            stealBtn.Size = UDim2.new(0, 88, 0, 32)
+            stealBtn.Position = UDim2.new(1, -94, 0.5, -16)
+            stealBtn.BackgroundColor3 = Color3.fromRGB(45, 120, 240)
+            stealBtn.BorderSizePixel = 0
+            stealBtn.Font = Enum.Font.GothamBold
+            stealBtn.TextSize = 10
+            stealBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            stealBtn.Text = "STEAL (WALK)"
+            local btnCorner = Instance.new("UICorner", stealBtn)
+            btnCorner.CornerRadius = UDim.new(0, 6)
+
+            stealBtn.Activated:Connect(function()
+                RunStealCycle(cage, true)
+            end)
+
+            card.Parent = RadarScroll
+        else
+            card.LayoutOrder = i
+            local infoLbl = card:FindFirstChild("InfoLbl")
+            if infoLbl then
+                infoLbl.Text = string.format("📍 Path %d  •  %.0f studs", cage.Path, cage.Distance)
+            end
+        end
+
+        local vpf = card:FindFirstChild("Preview")
+        if vpf then
+            PopulateViewport(vpf, "Cages", cage.Kind, cage.Kind)
+        end
+    end
+
+    for _, ch in ipairs(RadarScroll:GetChildren()) do
+        if ch:IsA("Frame") and ch.Name:find("RadarCageCard_") and not seen[ch.Name] then
+            ch:Destroy()
+        end
+    end
+end
+
+-- ============================================================================
+-- Farm Stats Updater
+-- ============================================================================
+local function UpdateOverviewStats()
+    local _, allPets = CollectPets()
+    local totalIncome = 0
+    local topEarner = nil
+    local inStalls = 0
+
+    for _, pet in ipairs(allPets) do
+        totalIncome = totalIncome + pet.Income
+        if not topEarner or pet.Income > topEarner.Income then
+            topEarner = pet
+        end
+        if pet.InStall then
+            inStalls = inStalls + 1
+        end
+    end
+
+    LblTotalIncome:SetText(string.format("Total Income: %s /s", FormatNumber(totalIncome)))
+    if topEarner then
+        LblTopEarner:SetText(string.format("Top: %s (%s/s)", topEarner.Kind, FormatNumber(topEarner.Income)))
+    else
+        LblTopEarner:SetText("Top Earner: None")
+    end
+    LblStallOccupancy:SetText(string.format("Stalls: %d in stalls", inStalls))
+    LblTotalPets:SetText(string.format("Total Pets: %d", #allPets))
+
+    local _, allCages = CollectCages()
+    local readyCount = 0
+    local hatchingCount = 0
+    local backpackCount = 0
+    for _, cage in ipairs(allCages) do
+        if cage.IsReady then
+            readyCount = readyCount + 1
+        elseif cage.IsIncubating then
+            hatchingCount = hatchingCount + 1
+        else
+            backpackCount = backpackCount + 1
+        end
+    end
+    LblCagesProgress:SetText(string.format("Cages Hatching: %d", hatchingCount))
+    LblCagesReady:SetText(string.format("Ready to Hatch: %d (Backpack: %d)", readyCount, backpackCount))
+
+    -- Update Bag Cages tab stats
+    local emptyStalls, petStalls = GetStallStates()
+    local bagCages = CollectBagCages()
+    if LblBagCagesCount then
+        LblBagCagesCount:SetText(string.format("Backpack Cages: %d", #bagCages))
+    end
+    if LblEmptyStallsCount then
+        LblEmptyStallsCount:SetText(string.format("Empty Stalls: %d / 48", #emptyStalls))
+    end
+    if LblPetStallsCount then
+        LblPetStallsCount:SetText(string.format("Pet Stalls (Replaceable): %d", #petStalls))
+    end
+end
+
+-- Initial Render
+pcall(RenderPetsList)
+pcall(RenderCagesList)
+pcall(RenderBagCagesList)
+pcall(RenderRadarList)
+pcall(UpdateOverviewStats)
+pcall(UpdateHalloweenStats)
+
+-- Real-time Heartbeat Pump
+local lastRenderPets = 0
+local lastRenderCages = 0
+local lastRenderBag = 0
+local lastRenderRadar = 0
+local lastAutoStore = 0
+local lastAutoSteal = 0
+local lastStats = 0
+local lastAutoFuse = 0
+local lastHalloweenUpdate = 0
+local lastAutoBuyCandy = 0
+
+local heartbeatConn = RunService.Heartbeat:Connect(function()
+    local now = os.clock()
+
+    -- Auto Steal (Simwalk) loop every 1.5s
+    if State.AutoStealCages and not State.IsStealingCycleRunning and (now - lastAutoSteal >= 1.5) then
+        lastAutoSteal = now
+        pcall(RunStealCycle)
+    end
+
+    -- Auto Store Pets every 1.5s
+    if State.AutoStorePets and (now - lastAutoStore >= 1.5) then
+        lastAutoStore = now
+        pcall(ProcessAutoStorePets)
+    end
+
+    -- Update World Cages Radar every 3s
+    if State.NeedsRadarRefresh or (now - lastRenderRadar >= 3) then
+        State.NeedsRadarRefresh = false
+        lastRenderRadar = now
+        pcall(RenderRadarList)
+    end
+
+    -- Update Pet cards when requested or every 4s
+    if State.NeedsPetRefresh or (now - lastRenderPets >= 4) then
+        State.NeedsPetRefresh = false
+        lastRenderPets = now
+        pcall(RenderPetsList)
+    end
+
+    -- Update Cage countdowns every 1s
+    if State.NeedsCageRefresh or (now - lastRenderCages >= 1) then
+        State.NeedsCageRefresh = false
+        lastRenderCages = now
+        pcall(RenderCagesList)
+    end
+
+    -- Update Bag Cages every 2s
+    if State.NeedsBagRefresh or (now - lastRenderBag >= 2) then
+        State.NeedsBagRefresh = false
+        lastRenderBag = now
+        pcall(RenderBagCagesList)
+    end
+
+    -- Update Overview stats every 3s
+    if now - lastStats >= 3 then
+        lastStats = now
+        pcall(UpdateOverviewStats)
+    end
+
+    -- Auto Fuse background loop every 15s
+    if State.AutoFuse and not State.IsAutoFusing and not State.IsStealingActive and not State.IsAutoPlacing then
+        if now - lastAutoFuse >= 15 then
+            lastAutoFuse = now
+            RunAutoFuse(false)
+        end
+    end
+
+    -- Update Halloween Candy stats every 2s
+    if State.NeedsHalloweenRefresh or (now - lastHalloweenUpdate >= 2) then
+        State.NeedsHalloweenRefresh = false
+        lastHalloweenUpdate = now
+        pcall(UpdateHalloweenStats)
+    end
+
+    -- Auto Buy Selected Candy Item every 5s
+    if State.AutoBuyCandy and (now - lastAutoBuyCandy >= 5) then
+        lastAutoBuyCandy = now
+        pcall(function()
+            local candy = GetPlayerCandy()
+            local item = CandyShopItems[State.SelectedCandyItem]
+            if item and candy >= item.Price then
+                BuyCandyShopItem(State.SelectedCandyItem)
+            end
+        end)
+    end
+end)
+
+-- Unload handler
+local function Teardown()
+    if heartbeatConn then
+        heartbeatConn:Disconnect()
+        heartbeatConn = nil
+    end
+    for _, m in pairs(LookCache.Pets) do pcall(function() m:Destroy() end) end
+    for _, m in pairs(LookCache.Cages) do pcall(function() m:Destroy() end) end
+    table.clear(LookCache.Pets)
+    table.clear(LookCache.Cages)
+    pcall(function() Library:Unload() end)
+    print("[Honymoon Hub] Steal A Pet Inspector unloaded cleanly.")
+end
+
+getgenv().StealAPetUnload = Teardown
+Library:OnUnload(Teardown)
+
+pcall(MarioBanner.Step, "Interface")
+print("[Honymoon Hub] Steal A Pet And Ride It loaded successfully with Mario Template & 3D Previews!")
