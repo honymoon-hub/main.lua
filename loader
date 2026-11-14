@@ -12,6 +12,7 @@ local GAMES = {
     [10771935715] = "MahanakhonRacing",
     [10769315427] = "Steal A Pet And Ride it",
     [10436530264] = "Build An Ant Empire",
+    [7633926880] = "BloxStrike",
 }
 
 local function Notify(text, detail)
