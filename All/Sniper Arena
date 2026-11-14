@@ -772,7 +772,7 @@ function xDTaraZ.Banner.Show()
         xDTaraZ.Banner.Art,
         xDTaraZ.Banner.Title,
         rule,
-        "   SNIPER ARENA  //  by SPY  //  discord.gg/jA2qruQZN2",
+        "   SNIPER ARENA  //  by xDSpyZ  //  discord.gg/jA2qruQZN2",
         "   executor: " .. tostring(executor) .. "   //   player: " .. LocalPlayer.Name,
         rule,
     }, "\n"))
