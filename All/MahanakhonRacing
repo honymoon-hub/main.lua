@@ -11,7 +11,7 @@ if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 if game.GameId ~= 10771935715 then
-    game:GetService("Players").LocalPlayer:Kick("Honymoon Hub: this script is for MAHANAKHON RACING only")
+    game:GetService("Players").LocalPlayer:Kick("Mario Hub: this script is for MAHANAKHON RACING only")
     return
 end
 do
@@ -192,6 +192,7 @@ xDTaraZ.State = {
     Alive = true,
     Gen = 0,                      -- cancel token: bumped when a farm toggle changes
     AntiStuck = true,             -- slow ghost-through when stuck on props
+    FollowRoads = true,           -- long trips follow the street graph instead of heading straight
     Status = "Idle",
     -- 1. KAITUN (ALL-IN-ONE)
     Kaitun = false,
@@ -224,6 +225,17 @@ xDTaraZ.State = {
     AutoRepair = true,
     AutoFarmCheck = true,
     ForceMaxEcu = true,       -- Force 2.00x Maximum ECU Gain
+    -- 5b. VEHICLE / DRIVING
+    WorkVehicle = "Auto",         -- vehicle used for jobs / missions ("Auto" = PCX160)
+    RideSpeedStraight = 70,       -- driving speed on straights
+    RideSpeedCorner = 35,         -- driving speed in corners / turns
+    NoclipAvoid = false,          -- pathfinding around big obstacles + noclip through small ones
+    AutoRefuel = true,
+    RefuelBelow = 40,             -- refuel when fuel % drops below this
+    Refueling = false,            -- true while a refuel trip pauses the farm
+    StepBusy = false,
+    AutoEcuTune = false,
+    TeleportBypass = true,        -- teleport blocked -> stepped hops -> drive there
     -- 6. MISC & MOVEMENT
     WalkSpeedOn = false,
     WalkSpeed = 32,
@@ -246,14 +258,65 @@ local function SafeRoot()
     if not char then return nil end
     return char:FindFirstChild("HumanoidRootPart")
 end
-local function SafeTeleport(targetCFrame)
-    local hrp = SafeRoot()
+-- Top-most vehicle model we are sitting in (nil on foot)
+local function TopVehicleModel()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+    local seat = hum and hum.SeatPart
+    if not seat then return nil, nil end
+    local m = seat
+    while m.Parent and m.Parent ~= Workspace and m.Parent:IsA("Model") do
+        m = m.Parent
+    end
+    if not m:IsA("Model") then
+        m = seat:FindFirstAncestorWhichIsA("Model")
+    end
+    return m, seat
+end
+
+-- Teleport that actually lands you on the ground: streams the area in, finds the real floor with a raycast,
+-- and moves the whole vehicle (not just the character) when you are riding.
+local function SafeTeleport(target)
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
-    hrp.CFrame = typeof(targetCFrame) == "CFrame" and targetCFrame or CFrame.new(targetCFrame)
-    hrp.AssemblyLinearVelocity = Vector3.zero
-    hrp.AssemblyAngularVelocity = Vector3.zero
+
+    local cf = typeof(target) == "CFrame" and target or CFrame.new(target)
+    local pos = cf.Position
+
+    pcall(function() LocalPlayer:RequestStreamAroundAsync(pos, 4) end)
+
+    local veh, seat = TopVehicleModel()
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = veh and { char, veh } or { char }
+    params.IgnoreWater = true
+
+    -- the coordinates are floor level, so start the ray just above them (never lands on a roof)
+    local groundY
+    for _ = 1, 10 do
+        local hit = Workspace:Raycast(Vector3.new(pos.X, pos.Y + 4, pos.Z), Vector3.new(0, -45, 0), params)
+        if hit then
+            groundY = hit.Position.Y
+            break
+        end
+        task.wait(0.25)
+    end
+
+    local final = CFrame.new(pos.X, (groundY or pos.Y) + (veh and 2.2 or 3.2), pos.Z) * cf.Rotation
+    if veh then
+        veh:PivotTo(final)
+        local root = seat.AssemblyRootPart or seat
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    else
+        char:PivotTo(final)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
     return true
 end
+
 
 --- ═══════════════════════════════════════
 --- RADAR & 3D PATH VISUALIZER SYSTEM
@@ -359,75 +422,123 @@ end
 -- ═══════════════════════════════════════
 
 -- Accurate multi-layer path computation using official RoadGraph & PathfindingService
-local function ComputeNavigationPath(startPos, endPos)
+-- Long trips: [start -> nearest road] by PathfindingService, [road -> road] along the real street graph (dense points,
+-- so corners are not cut), [road -> destination] by PathfindingService. Nothing is ever a straight line across lawns.
+local RoadGraphModule = nil
+local function GetRoadGraph()
+    if RoadGraphModule ~= nil then return RoadGraphModule or nil end
+    local mod = ReplicatedStorage:FindFirstChild("RoadGraph")
+    if mod then
+        local ok, rg = pcall(require, mod)
+        if ok and type(rg) == "table" and rg.route then
+            RoadGraphModule = rg
+            return rg
+        end
+    end
+    RoadGraphModule = false
+    return nil
+end
+
+-- PathfindingService leg between two points -> Vector3 list (first = a, last = b) or nil
+local function PathLeg(a, b, forVehicle)
+    if (a - b).Magnitude < 6 then return { a, b } end
+    if (a - b).Magnitude > 700 then return nil end
+    local path = PathfindingService:CreatePath({
+        AgentRadius = forVehicle and 3.0 or 2.0,
+        AgentHeight = 5.0,
+        AgentCanJump = true,
+        WaypointSpacing = forVehicle and 10 or 6
+    })
+    local ok = pcall(function() path:ComputeAsync(a, b) end)
+    if ok and path.Status == Enum.PathStatus.Success then
+        local list = {}
+        for _, w in ipairs(path:GetWaypoints()) do
+            table.insert(list, w.Position)
+        end
+        if #list >= 2 then return list end
+    end
+    return nil
+end
+
+-- Insert intermediate points so no gap is longer than `step` studs (keeps us on curved roads)
+local function Densify(points, step)
+    local out = {}
+    for i, p in ipairs(points) do
+        if i > 1 then
+            local prev = points[i - 1]
+            local n = math.floor((p - prev).Magnitude / step)
+            for k = 1, n do
+                table.insert(out, prev:Lerp(p, k / (n + 1)))
+            end
+        end
+        table.insert(out, p)
+    end
+    return out
+end
+
+local function ToWaypoints(points)
+    local wps = {}
+    for _, p in ipairs(points) do
+        local last = wps[#wps]
+        if not last or (last.Position - p).Magnitude > 0.8 then
+            table.insert(wps, { Position = p, Action = Enum.PathWaypointAction.Walk })
+        end
+    end
+    return wps
+end
+
+local function ComputeNavigationPath(startPos, endPos, forVehicle)
     local totalDist = (endPos - startPos).Magnitude
 
-    -- 1. Short-range local navigation (inside Construction site, Garage bays, or rooms)
-    -- PathfindingService computes paths around all scaffolding, walls, and obstacles safely
+    -- 1. Short-range local navigation (construction site, garage bays, rooms): PathfindingService around walls/scaffolding
     if totalDist <= 55 then
-        local path = PathfindingService:CreatePath({
-            AgentRadius = 2.0,
-            AgentHeight = 5.0,
-            AgentCanJump = true,
-            WaypointSpacing = 3.5
-        })
-        local ok = pcall(function() path:ComputeAsync(startPos, endPos) end)
-        if ok and path.Status == Enum.PathStatus.Success then
-            return path:GetWaypoints()
+        local leg = PathLeg(startPos, endPos, forVehicle)
+        if leg then
+            return ToWaypoints(leg)
         end
     end
 
-    -- 2. Long-range city navigation (Delivery, traveling across Bangkok map)
-    -- Uses the official ReplicatedStorage.RoadGraph to route STRICTLY on paved streets and through real gates!
-    -- This guarantees zero building/wall collisions so Server AntiCheat never detects noclip/tween!
-    local rsRoadGraph = ReplicatedStorage:FindFirstChild("RoadGraph")
-    if rsRoadGraph then
-        local ok, RoadGraph = pcall(require, rsRoadGraph)
-        if ok and RoadGraph and RoadGraph.route then
-            local wps2d, totalLen = RoadGraph.route(startPos, endPos)
-            if wps2d and #wps2d > 0 then
-                local waypoints = {}
-                local rayParams = RaycastParams.new()
-                rayParams.FilterType = Enum.RaycastFilterType.Include
-                rayParams.FilterDescendantsInstances = { Workspace.Map }
+    -- 2. Long-range: follow the street graph from the nearest road all the way to the road nearest the destination
+    local rg = State.FollowRoads and GetRoadGraph()
+    if rg then
+        local ok, wps2d, roadLen = pcall(rg.route, startPos, endPos)
+        if ok and wps2d and #wps2d >= 4 and (not roadLen or roadLen < totalDist * 6 + 400) then
+            local rayParams = RaycastParams.new()
+            rayParams.FilterType = Enum.RaycastFilterType.Include
+            rayParams.FilterDescendantsInstances = { Workspace:FindFirstChild("Map") or Workspace }
 
-                -- Helper to find real ground elevation for a 2D road node
-                local function getRoadGround(pos2d, refY)
-                    local baseRef = refY or 2.0
-                    local testPos = Vector3.new(pos2d.X, math.clamp(baseRef + 6, 8, 25), pos2d.Y)
-                    local hit = Workspace:Raycast(testPos, Vector3.new(0, -35, 0), rayParams)
-                    local y = hit and hit.Position.Y or baseRef
-                    return Vector3.new(pos2d.X, y, pos2d.Y)
-                end
-
-                -- Add start position
-                table.insert(waypoints, { Position = startPos, Action = Enum.PathWaypointAction.Walk })
-
-                -- Add intermediate road nodes with raycasted road elevation
-                local lastY = startPos.Y
-                for _, node2d in ipairs(wps2d) do
-                    local node3d = getRoadGround(node2d, lastY)
-                    lastY = node3d.Y
-                    table.insert(waypoints, { Position = node3d, Action = Enum.PathWaypointAction.Walk })
-                end
-
-                -- Add target position
-                table.insert(waypoints, { Position = endPos, Action = Enum.PathWaypointAction.Walk })
-                return waypoints
+            local function getRoadGround(pos2d, refY)
+                local baseRef = refY or 2.0
+                local testPos = Vector3.new(pos2d.X, math.clamp(baseRef + 6, 8, 25), pos2d.Y)
+                local hit = Workspace:Raycast(testPos, Vector3.new(0, -35, 0), rayParams)
+                return Vector3.new(pos2d.X, hit and hit.Position.Y or baseRef, pos2d.Y)
             end
+
+            -- road nodes (drop the raw start/end entries; those legs are done by PathfindingService)
+            local mid = {}
+            local lastY = startPos.Y
+            for i = 2, #wps2d - 1 do
+                local p = getRoadGround(wps2d[i], lastY)
+                lastY = p.Y
+                table.insert(mid, p)
+            end
+
+            local head = PathLeg(startPos, mid[1], forVehicle) or { startPos, mid[1] }
+            local tail = PathLeg(mid[#mid], endPos, forVehicle) or { mid[#mid], endPos }
+
+            local pts = {}
+            for _, p in ipairs(head) do table.insert(pts, p) end
+            for i = 2, #mid do table.insert(pts, mid[i]) end
+            for i = 2, #tail do table.insert(pts, tail[i]) end
+
+            return ToWaypoints(Densify(pts, forVehicle and 22 or 12))
         end
     end
 
     -- 3. Fallback: PathfindingService with broader agent spacing
-    local path = PathfindingService:CreatePath({
-        AgentRadius = 2.5,
-        AgentHeight = 5.0,
-        AgentCanJump = true,
-        WaypointSpacing = 5.0
-    })
-    local ok = pcall(function() path:ComputeAsync(startPos, endPos) end)
-    if ok and path.Status == Enum.PathStatus.Success then
-        return path:GetWaypoints()
+    local leg = PathLeg(startPos, endPos, forVehicle)
+    if leg then
+        return ToWaypoints(Densify(leg, forVehicle and 22 or 12))
     end
 
     return {
@@ -551,6 +662,66 @@ local function GhostThrough(root, goalPos, gen, vehicle)
     pcall(function() folder:Destroy() end)
 end
 
+-- ═══════════════════════════════════════
+-- NOCLIP + OBSTACLE AVOIDANCE
+-- Small stuff (poles, fences, signs, props) is ghosted with NoCollisionConstraint,
+-- big stuff (buildings, walls, big objects) is routed around with PathfindingService.
+-- ═══════════════════════════════════════
+local function ClearAvoid()
+    local f = Workspace:FindFirstChild("MarioAvoid")
+    if f then pcall(f.Destroy, f) end
+end
+
+-- returns "small" (already ghosted), "big" (needs a detour) or nil
+local function AvoidAhead(root, dir, vehicle)
+    if not State.NoclipAvoid then return nil end
+    local char = LocalPlayer.Character
+    if not (char and root) then return nil end
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = vehicle and { char, vehicle } or { char }
+    params.IgnoreWater = true
+
+    local origin = root.Position + Vector3.new(0, vehicle and 0.6 or -1.2, 0)
+    local side = Vector3.new(-dir.Z, 0, dir.X)
+    local found
+    for _, off in ipairs({ 0, 2.4, -2.4 }) do
+        local hit = Workspace:Raycast(origin + side * off, dir * 16, params)
+        if hit and hit.Instance:IsA("BasePart") and not hit.Instance:IsA("Terrain")
+            and hit.Instance.CanCollide and hit.Normal.Y < 0.6 then
+            found = hit.Instance
+            break
+        end
+    end
+    if not found then return nil end
+
+    local sz = found.Size
+    local small = sz.Magnitude <= 12 or (sz.Y <= 14 and math.min(sz.X, sz.Z) <= 3.2)
+    if not small then return "big", found end
+
+    local folder = Workspace:FindFirstChild("MarioAvoid")
+    if not folder then
+        folder = Instance.new("Folder")
+        folder.Name = "MarioAvoid"
+        folder.Parent = Workspace
+    end
+    if #folder:GetChildren() > 160 then folder:ClearAllChildren() end
+    local n = 0
+    for _, model in ipairs(vehicle and { char, vehicle } or { char }) do
+        for _, p in ipairs(model:GetDescendants()) do
+            if p:IsA("BasePart") and p.CanCollide and n < 70 then
+                n = n + 1
+                local c = Instance.new("NoCollisionConstraint")
+                c.Part0 = p
+                c.Part1 = found
+                c.Parent = folder
+            end
+        end
+    end
+    return "small", found
+end
+
+
 --- Realistic humanoid walking simulation with stuck recovery (hop/sidestep, then slow ghost-through)
 local function SimWalk(targetPos, speed, maxTimeout)
     local gen = State.Gen
@@ -581,7 +752,7 @@ local function SimWalk(targetPos, speed, maxTimeout)
         return true
     end
 
-    local waypoints = ComputeNavigationPath(hrp.Position, targetV3)
+    local waypoints = ComputeNavigationPath(hrp.Position, targetV3, false)
     RenderPathVisuals(waypoints)
 
     local startTime = os.clock()
@@ -600,6 +771,10 @@ local function SimWalk(targetPos, speed, maxTimeout)
             if Cancelled(gen) or os.clock() - wpStart > 6.0 then break end
 
             local toWp = (wpPos - hrp.Position)
+            if State.NoclipAvoid then
+                local flat = Vector3.new(toWp.X, 0, toWp.Z)
+                if flat.Magnitude > 0.5 then AvoidAhead(hrp, flat.Unit, nil) end
+            end
             local _, jump, steer = ScanRadarObstacles(hrp, toWp)
             if jump then
                 hum.Jump = true
@@ -640,15 +815,94 @@ local function SimWalk(targetPos, speed, maxTimeout)
         StopMotion()
     end
     CleanPathVisuals()
+    ClearAvoid()
     restore()
 
     return (Vector3.new(targetV3.X, hrp.Position.Y, targetV3.Z) - hrp.Position).Magnitude <= 5.0
 end
 
--- Ensure player is mounted on a MOTORCYCLE for SimRide
+-- ═══════════════════════════════════════
+-- WORK VEHICLE (chosen in the Vehicle tab, used by every job / mission / refuel trip)
+-- ═══════════════════════════════════════
+local function OwnedVehicles()
+    local out = {}
+    local sv = Workspace:FindFirstChild("SpawnedVehicles")
+    if sv then
+        for _, v in ipairs(sv:GetChildren()) do
+            if v:GetAttribute("OwnerUserId") == LocalPlayer.UserId then
+                table.insert(out, v)
+            end
+        end
+    end
+    return out
+end
+
+local function VehicleMatches(model, id)
+    id = tostring(id):upper()
+    return tostring(model:GetAttribute("VehicleId") or ""):upper() == id or model.Name:upper() == id
+end
+
+local function MountVehicle(veh)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not (veh and hum and hrp) then return false end
+    local seat = veh:FindFirstChildWhichIsA("VehicleSeat", true) or veh:FindFirstChildWhichIsA("Seat", true)
+    if not seat then return false end
+    if hum.SeatPart == seat then return true end
+    hrp.CFrame = seat.CFrame + Vector3.new(0, 1.5, 0)
+    task.wait(0.15)
+    seat:Sit(hum)
+    task.wait(0.4)
+    pcall(function()
+        local tag = veh:GetAttribute("VehicleTag") or veh:GetAttribute("VehicleId") or veh.Name
+        local remote = ReplicatedStorage:FindFirstChild(tostring(tag) .. "Remote") or ReplicatedStorage:FindFirstChild("PCX160Remote")
+        if remote then
+            NetSeal.fire(remote, "Stand", false)
+            NetSeal.fire(remote, "Engine", true)
+        end
+    end)
+    return hum.SeatPart == seat
+end
+
+-- Make sure we sit in the vehicle picked in the Vehicle tab (takes it out of the garage when needed)
+local function EnsureChosenVehicle(id)
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+    if not hum then return nil end
+
+    local cur = TopVehicleModel()
+    if cur and VehicleMatches(cur, id) then return cur end
+
+    local function findOwned()
+        for _, v in ipairs(OwnedVehicles()) do
+            if VehicleMatches(v, id) then return v end
+        end
+    end
+
+    local veh = findOwned()
+    if not veh then
+        pcall(NetSeal.invoke, GarageRemote, "Spawn", id)
+        for _ = 1, 15 do
+            task.wait(0.2)
+            veh = findOwned()
+            if veh then break end
+        end
+    end
+    if veh then
+        MountVehicle(veh)
+        return veh
+    end
+    return nil
+end
+
+-- Ensure player is mounted on the work vehicle (chosen vehicle, or a motorcycle by default) for SimRide
 local function EnsureMotorcycle()
     local char = LocalPlayer.Character
     if not char then return nil end
+    if State.WorkVehicle and State.WorkVehicle ~= "Auto" then
+        return EnsureChosenVehicle(State.WorkVehicle)
+    end
     local hum = char:FindFirstChildWhichIsA("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hum or not hrp then return nil end
@@ -718,7 +972,10 @@ local function EnsureMotorcycle()
 end
 
 -- SimRide: motorcycle driving via physics velocity, with stuck recovery (reverse + turn, then slow ghost-through)
-local function SimRide(targetPos, speed, maxTimeout)
+-- SimRide: drive a vehicle along the road graph. Straight-line speed and corner speed are separate settings,
+-- small props are ghosted and big obstacles are detoured with PathfindingService (when "Noclip + Avoid" is on),
+-- and stuck recovery (reverse + turn, then slow ghost-through) stays as the last resort.
+local function SimRide(targetPos, speed, maxTimeout, useCurrent)
     local gen = State.Gen
     local char = LocalPlayer.Character
     if not char then return false end
@@ -728,8 +985,8 @@ local function SimRide(targetPos, speed, maxTimeout)
 
     local targetV3 = typeof(targetPos) == "CFrame" and targetPos.Position or targetPos
 
-    -- MUST DRIVE MOTORCYCLE FOR SIMRIDE:
-    local bike = EnsureMotorcycle()
+    local bike = useCurrent and (TopVehicleModel()) or nil
+    bike = bike or EnsureMotorcycle()
     if not bike or not hum.Sit then
         return SimWalk(targetV3, speed or State.DeliveryWalkSpeed or 28, maxTimeout)
     end
@@ -740,7 +997,8 @@ local function SimRide(targetPos, speed, maxTimeout)
     end
 
     local seat = hum.SeatPart
-    local rideSpeed = speed or State.DeliveryRideSpeed or 65
+    local straight = State.RideSpeedStraight or speed or State.DeliveryRideSpeed or 65
+    local corner = math.min(State.RideSpeedCorner or 35, straight)
     local flatDist = (Vector3.new(targetV3.X, chassis.Position.Y, targetV3.Z) - chassis.Position).Magnitude
 
     local function halt()
@@ -758,40 +1016,80 @@ local function SimRide(targetPos, speed, maxTimeout)
         return true
     end
 
-    local waypoints = ComputeNavigationPath(chassis.Position, targetV3)
+    local waypoints = ComputeNavigationPath(chassis.Position, targetV3, true)
     RenderPathVisuals(waypoints)
 
     local startTime = os.clock()
-    local timeout = maxTimeout or ((flatDist / rideSpeed) + 18.0)
+    local timeout = maxTimeout or ((flatDist * 1.8 / math.max((straight + corner) / 2, 15)) + 22.0)
+    local lastAvoid, lastDetour = 0, 0
 
-    for _, wp in ipairs(waypoints) do
-        if Cancelled(gen) or os.clock() - startTime > timeout then break end
-        if not hum.Sit then break end
+    local function angleBetween(a, b)
+        return math.deg(math.acos(math.clamp(a:Dot(b), -1, 1)))
+    end
 
-        local wpPos = wp.Position
+    local driveTo
+    driveTo = function(wpPos, nextPos, allowDetour)
         local wpStart = os.clock()
         local lastPos, lastCheck, stuck = chassis.Position, os.clock(), 0
 
         while (Vector3.new(wpPos.X, chassis.Position.Y, wpPos.Z) - chassis.Position).Magnitude > 9.0 do
-            if Cancelled(gen) or os.clock() - wpStart > 8.0 then break end
-            if not hum.Sit then break end
+            if Cancelled(gen) or os.clock() - wpStart > 8.0 then return false end
+            if not hum.Sit then return false end
 
             local currentPos = chassis.Position
             local toWp = (wpPos - currentPos)
             local flatDir = Vector3.new(toWp.X, 0, toWp.Z)
-            if flatDir.Magnitude < 0.2 then break end
+            if flatDir.Magnitude < 0.2 then return true end
             local moveUnit = flatDir.Unit
 
-            local steerOffset = Vector3.zero
-            if State.RadarAvoidance then
-                local hasObs, _, steer = ScanRadarObstacles(chassis, moveUnit * 10.0)
-                if hasObs then steerOffset = steer end
+            -- slow down for corners: sharp turn right now, or a sharp bend right after this waypoint
+            local spd = straight
+            local sharp = 0
+            local look = chassis.CFrame.LookVector
+            local lookFlat = Vector3.new(look.X, 0, look.Z)
+            if lookFlat.Magnitude > 0.05 then
+                sharp = angleBetween(lookFlat.Unit, moveUnit)
             end
-            local finalDir = (moveUnit + steerOffset * 0.4).Unit
+            if nextPos and flatDir.Magnitude < 28 then
+                local seg = Vector3.new(nextPos.X - wpPos.X, 0, nextPos.Z - wpPos.Z)
+                if seg.Magnitude > 0.5 then
+                    sharp = math.max(sharp, angleBetween(moveUnit, seg.Unit))
+                end
+            end
+            if sharp > 25 then
+                spd = straight + (corner - straight) * math.clamp((sharp - 25) / 55, 0, 1)
+            end
 
-            -- rotate only (position untouched) and drive with natural velocity
+            -- Noclip + avoid: ghost small props, detour around big ones
+            if State.NoclipAvoid and os.clock() - lastAvoid > 0.12 then
+                lastAvoid = os.clock()
+                local kind = AvoidAhead(chassis, moveUnit, bike)
+                if kind == "big" then
+                    spd = math.min(spd, corner)
+                    if allowDetour and os.clock() - lastDetour > 3 then
+                        lastDetour = os.clock()
+                        local leg = PathLeg(chassis.Position, wpPos, true)
+                        if leg and #leg >= 3 then
+                            leg = Densify(leg, 14)
+                            for i, p in ipairs(leg) do
+                                if not driveTo(p, leg[i + 1], false) then break end
+                            end
+                            wpStart = os.clock()
+                            lastPos, lastCheck, stuck = chassis.Position, os.clock(), 0
+                        end
+                    end
+                end
+            end
+
+            local finalDir = moveUnit
+            if State.RadarAvoidance and not State.NoclipAvoid then
+                local hasObs, _, steer = ScanRadarObstacles(chassis, moveUnit * 10.0)
+                if hasObs then finalDir = (moveUnit + steer * 0.4).Unit end
+            end
+
+            currentPos = chassis.Position
             chassis.CFrame = CFrame.lookAt(currentPos, currentPos + Vector3.new(finalDir.X, 0, finalDir.Z))
-            chassis.AssemblyLinearVelocity = Vector3.new(finalDir.X * rideSpeed, chassis.AssemblyLinearVelocity.Y, finalDir.Z * rideSpeed)
+            chassis.AssemblyLinearVelocity = Vector3.new(finalDir.X * spd, chassis.AssemblyLinearVelocity.Y, finalDir.Z * spd)
             chassis.AssemblyAngularVelocity = Vector3.zero
             if seat and seat:IsA("VehicleSeat") then
                 seat.ThrottleFloat = 1.0
@@ -804,7 +1102,6 @@ local function SimRide(targetPos, speed, maxTimeout)
                 if moved < 2.0 then
                     stuck = stuck + 1
                     if stuck == 1 then
-                        -- back up while turning away from the obstacle
                         local side = Vector3.new(-moveUnit.Z, 0, moveUnit.X) * (math.random() < 0.5 and 1 or -1)
                         local backDir = (-moveUnit + side * 0.8).Unit
                         local t0 = os.clock()
@@ -828,13 +1125,24 @@ local function SimRide(targetPos, speed, maxTimeout)
 
             task.wait(0.04)
         end
+        return true
+    end
+
+    for i, wp in ipairs(waypoints) do
+        if Cancelled(gen) or os.clock() - startTime > timeout then break end
+        if not hum.Sit then break end
+        local nxt = waypoints[i + 1]
+        driveTo(wp.Position, nxt and nxt.Position or nil, true)
     end
 
     halt()
+    ClearAvoid()
 
     local finalFlatDist = (Vector3.new(targetV3.X, chassis.Position.Y, targetV3.Z) - chassis.Position).Magnitude
     return finalFlatDist <= 18.0
 end
+
+local SmartTeleport
 
 local function GetSeatedVeh()
     local char = LocalPlayer.Character
@@ -1030,7 +1338,7 @@ end
 local function Travel(pos, mode)
     mode = mode or State.KaitunMoveMode
     if mode == "InstantTP" then
-        return SafeTeleport(pos + Vector3.new(0, 1.5, 0))
+        return (SmartTeleport(pos + Vector3.new(0, 1.5, 0)))
     end
     local hrp = SafeRoot()
     if not hrp then return false end
@@ -1243,7 +1551,7 @@ local function DeliveryMove(target)
     elseif State.DeliveryMoveMode == "SimWalk" then
         return SimWalk(target, State.DeliveryWalkSpeed)
     end
-    return SafeTeleport(target + Vector3.new(0, 1.5, 0))
+    return (SmartTeleport(target + Vector3.new(0, 1.5, 0)))
 end
 
 -- Go to the target, wait for the server to mark us "arrived" (stopped inside the radius), then confirm
@@ -1434,10 +1742,384 @@ local function RunKaitunStep()
     end
 end
 
+-- ═══════════════════════════════════════
+-- NOTIFY BRIDGE (the UI library lives inside BuildInterface)
+-- ═══════════════════════════════════════
+local function Notify(title, msg, kind)
+    local f = xDTaraZ.NotifyFn
+    if f then pcall(f, title, msg, 4, kind or "Info") end
+end
+
+-- ═══════════════════════════════════════
+-- TELEPORT WITH BYPASS: 1) instant teleport and verify we stay there (server may rubber-band us)
+--                       2) stepped hops (small distance per tick)
+--                       3) drive there on the roads with the same driving system the missions use
+-- ═══════════════════════════════════════
+function SmartTeleport(target)
+    local cf = typeof(target) == "CFrame" and target or CFrame.new(target)
+    local goal = cf.Position
+    local gen = State.Gen
+
+    local function arrived(maxD)
+        local r = SafeRoot()
+        if not r then return false end
+        local veh = TopVehicleModel()
+        local p = veh and veh:GetPivot().Position or r.Position
+        return (Vector3.new(p.X, 0, p.Z) - Vector3.new(goal.X, 0, goal.Z)).Magnitude <= (maxD or 45)
+    end
+
+    -- 1. plain teleport, then make sure the server did not pull us back
+    SafeTeleport(cf)
+    task.wait(0.7)
+    if arrived() then
+        task.wait(0.8)
+        if arrived() then return true, "teleport" end
+    end
+    if not State.TeleportBypass or Cancelled(gen) then return false, "failed" end
+
+    -- 2. stepped hops
+    local char = LocalPlayer.Character
+    local veh = TopVehicleModel()
+    local root = SafeRoot()
+    if char and root then
+        local from = veh and veh:GetPivot().Position or root.Position
+        local to = Vector3.new(goal.X, goal.Y + 3, goal.Z)
+        local dist = (to - from).Magnitude
+        if dist < 1800 then
+            local steps = math.ceil(dist / 25)
+            for i = 1, steps do
+                if Cancelled(gen) then return false, "cancelled" end
+                local p = from:Lerp(to, i / steps)
+                local f = CFrame.new(p) * cf.Rotation
+                if veh then
+                    veh:PivotTo(f)
+                    local sr = (veh.PrimaryPart or root)
+                    sr.AssemblyLinearVelocity = Vector3.zero
+                else
+                    char:PivotTo(f)
+                    root.AssemblyLinearVelocity = Vector3.zero
+                end
+                task.wait(0.15)
+            end
+            task.wait(0.5)
+            if arrived() then
+                SafeTeleport(cf) -- settle on the real floor
+                task.wait(0.6)
+                if arrived() then return true, "stepped" end
+            end
+        end
+    end
+    if Cancelled(gen) then return false, "cancelled" end
+
+    -- 3. drive there
+    SetStatus("Teleport blocked: driving there")
+    Notify("Teleport", "Teleport was blocked, driving there instead", "Warning")
+    local ok = SimRide(goal, nil, 420)
+    return ok or arrived(60), "drive"
+end
+
+-- ═══════════════════════════════════════
+-- FUEL: auto refuel + manual "refuel now". Both pause the farm, drive along the roads to the nearest pump,
+-- fill up, then let the farm continue.
+-- ═══════════════════════════════════════
+local function MyVehicle()
+    local m = TopVehicleModel()
+    if m then return m end
+    return OwnedVehicles()[1]
+end
+
+local function FindFuelPumps()
+    local out = {}
+    for _, inst in ipairs(CollectionService:GetTagged(CareShared.PUMP_TAG or "FuelPump")) do
+        local pos = InstPos(inst)
+        if pos then table.insert(out, { inst = inst, pos = pos }) end
+    end
+    if #out == 0 and MapConfig and MapConfig.TELEPORTS then
+        for _, tp in ipairs(MapConfig.TELEPORTS) do
+            if tostring(tp.id):lower() == "gas" or tostring(tp.id):lower():find("gas", 1, true) then
+                local cf = tp.car or tp.foot
+                if cf then table.insert(out, { pos = cf.Position }) end
+            end
+        end
+    end
+    return out
+end
+
+local function PumpPrompt(inst)
+    if not inst then return nil end
+    return inst:FindFirstChildWhichIsA("ProximityPrompt", true)
+        or (inst.Parent and inst.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
+end
+
+local RefuelNow, EcuAutoTune
+function RefuelNow(auto)
+    if State.Refueling then return false end
+    local veh = MyVehicle()
+    if not veh then
+        Notify("Fuel", "No vehicle spawned - spawn one first", "Warning")
+        return false
+    end
+
+    State.Refueling = true -- the farm loop idles while this is true
+    State.Gen = State.Gen + 1 -- stop whatever movement is running
+    local gen = State.Gen
+    State.RefuelInfo = "Pausing quests..."
+    local t0 = os.clock()
+    while State.StepBusy and os.clock() - t0 < 8 do task.wait(0.1) end
+    StopMotion()
+
+    local success = false
+    local ok, err = pcall(function()
+        local startFuel = CareShared.fuel(veh)
+        local pumps = FindFuelPumps()
+        if #pumps == 0 then error("no fuel pump found") end
+
+        local function pivot() return veh:GetPivot().Position end
+        table.sort(pumps, function(a, b)
+            return (a.pos - pivot()).Magnitude < (b.pos - pivot()).Magnitude
+        end)
+        local pump = pumps[1]
+
+        State.RefuelInfo = string.format("Driving to gas station (%d%%)", math.floor(startFuel))
+        SetStatus("Refuel: driving to pump")
+        MountVehicle(veh)
+
+        local function near()
+            return (Vector3.new(pivot().X, 0, pivot().Z) - Vector3.new(pump.pos.X, 0, pump.pos.Z)).Magnitude <= 14
+        end
+        for _ = 1, 2 do
+            if near() or Cancelled(gen) then break end
+            SimRide(pump.pos, nil, 420, true)
+        end
+        if not near() and not Cancelled(gen) then
+            -- driving did not get us there: last resort teleport next to the pump
+            SmartTeleport(CFrame.new(pump.pos + Vector3.new(0, 2, 6)))
+        end
+        if Cancelled(gen) then error("cancelled") end
+
+        State.RefuelInfo = "Filling up..."
+        SetStatus("Refuel: filling up")
+        local last, still = CareShared.fuel(veh), 0
+        for attempt = 1, 16 do
+            if Cancelled(gen) or CareShared.fuel(veh) >= 99 then break end
+            local prompt = PumpPrompt(pump.inst)
+            if prompt then
+                pcall(function() prompt.HoldDuration = 0 end)
+                if fireproximityprompt then pcall(fireproximityprompt, prompt) end
+            end
+            if attempt >= 3 and still >= 2 then
+                -- fallback: ask the care system directly
+                pcall(NetSeal.invoke, CareRemote, "Refuel", veh, pump.inst)
+            end
+            if attempt == 6 and still >= 4 then
+                -- some pumps want you on foot
+                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+                if hum and hum.Sit then hum.Sit = false end
+            end
+            task.wait(1.2)
+            local now = CareShared.fuel(veh)
+            if now <= last + 0.1 then still = still + 1 else still = 0 end
+            last = now
+            State.RefuelInfo = string.format("Filling up... %d%%", math.floor(now))
+        end
+        success = CareShared.fuel(veh) >= 90 or CareShared.fuel(veh) > startFuel + 5
+    end)
+
+    StopMotion()
+    State.RefuelInfo = success and "Refueled ✓" or ("Refuel failed: " .. tostring(err or "pump did not respond"))
+    State.Refueling = false
+    Notify("Fuel", success and "Tank refilled" or State.RefuelInfo, success and "Success" or "Warning")
+    return success
+end
+
+task.spawn(function()
+    local lastTry = 0
+    while State.Alive do
+        task.wait(2)
+        if State.AutoRefuel and not State.Refueling and os.clock() - lastTry > 30 then
+            local farming = State.Kaitun or State.AutoMechanic or State.AutoBuilder or State.AutoDelivery
+            local veh = (farming or TopVehicleModel()) and MyVehicle() or nil
+            if veh and CareShared.fuel(veh) < State.RefuelBelow then
+                lastTry = os.clock()
+                pcall(RefuelNow, true)
+            end
+        end
+    end
+end)
+
+-- ═══════════════════════════════════════
+-- ECU AUTO TUNE
+-- The ECU takes ONE changed map per send (2s cooldown) and answers with a 0..1 score per map.
+-- We hill-climb each map: coarse sweep, then shrinking steps, then per-band refinement.
+-- ═══════════════════════════════════════
+local Ecu = { running = false, text = "ECU: idle", scores = {}, tunedFor = nil }
+xDTaraZ.Ecu = Ecu
+
+local function EcuQuantize(t, v)
+    return math.clamp(math.round(v / t.step) * t.step, t.min, t.max)
+end
+
+local function EcuCopy(file)
+    local out = {}
+    for k, arr in pairs(file) do
+        out[k] = table.clone(arr)
+    end
+    return out
+end
+
+local function EcuReadFile(veh)
+    local ok, success, data = pcall(NetSeal.invoke, EcuRemote, "Get", veh)
+    if ok and success and type(data) == "table" then
+        local f = data.file or data
+        local clean = EcuShared.clean and EcuShared.clean(f)
+        if clean then return clean end
+    end
+    return EcuShared.stockFile()
+end
+
+function EcuAutoTune(veh)
+    if Ecu.running then return false end
+    Ecu.running = true
+    Ecu.scores = {}
+    local ok, err = pcall(function()
+        State.ForceMaxEcu = false -- the fake x2.00 would hide the real result
+        local cur = EcuReadFile(veh)
+        local sends = 0
+        local lastSend = 0
+
+        local function send(key, arr)
+            local wait = EcuShared.SEND_COOLDOWN + 0.2 - (os.clock() - lastSend)
+            if wait > 0 then task.wait(wait) end
+            local file = EcuCopy(cur)
+            file[key] = arr
+            lastSend = os.clock()
+            sends = sends + 1
+            local pok, success, msg, _, feedback = pcall(NetSeal.invoke, EcuRemote, "Send", veh, file, { k = EcuShared.sum(file) })
+            if not (pok and success) then
+                Ecu.lastError = tostring(msg or "ECU did not answer")
+                return nil
+            end
+            cur = file
+            local s = type(feedback) == "table" and tonumber(feedback[key]) or nil
+            if s then Ecu.scores[key] = s end
+            return s
+        end
+
+        local function uniform(v)
+            local a = {}
+            for i = 1, EcuShared.POINTS do a[i] = v end
+            return a
+        end
+
+        local total = #EcuShared.TABLES
+        for ti, t in ipairs(EcuShared.TABLES) do
+            if not State.AutoEcuTune and not Ecu.manual then error("stopped") end
+            local function say(extra)
+                Ecu.text = string.format("Tuning %s (%d/%d) %s", t.label or t.key, ti, total, extra or "")
+            end
+            say("sweep")
+
+            local lo, hi = t.recipeMin or t.min, t.recipeMax or t.max
+            local bestV, bestS
+            for k = 0, 4 do
+                local v = EcuQuantize(t, lo + (hi - lo) * k / 4)
+                local s = send(t.key, uniform(v))
+                if not s then error(Ecu.lastError or "send failed") end
+                if not bestS or s > bestS then bestV, bestS = v, s end
+                say(string.format("best %.0f%%", bestS * 100))
+                if bestS >= 0.98 then break end
+            end
+
+            -- refine with shrinking steps
+            local d = (hi - lo) / 8
+            local guard = 0
+            while bestS < 0.98 and d >= t.step * 2 and guard < 12 do
+                guard = guard + 1
+                local improved = false
+                for _, dir in ipairs({ 1, -1 }) do
+                    local cand = EcuQuantize(t, bestV + dir * d)
+                    if cand ~= bestV then
+                        local s = send(t.key, uniform(cand))
+                        if s and s > bestS then
+                            bestV, bestS, improved = cand, s, true
+                            break
+                        end
+                    end
+                end
+                if not improved then d = d / 2 end
+                say(string.format("best %.0f%%", bestS * 100))
+            end
+
+            -- per-band refinement when a single value is not enough
+            local arr = uniform(bestV)
+            if bestS < 0.95 then
+                for bi, band in ipairs(EcuShared.BANDS) do
+                    local bd = (hi - lo) / 10
+                    local bandV = bestV
+                    for _ = 1, 6 do
+                        local improved = false
+                        for _, dir in ipairs({ 1, -1 }) do
+                            local cand = EcuQuantize(t, bandV + dir * bd)
+                            if cand ~= bandV then
+                                local trial = table.clone(arr)
+                                for i = band[1], band[2] do trial[i] = cand end
+                                local s = send(t.key, trial)
+                                if s and s > bestS then
+                                    bestS, bandV, arr, improved = s, cand, trial, true
+                                    break
+                                end
+                            end
+                        end
+                        if not improved then bd = bd / 2 end
+                        if bd < t.step * 2 then break end
+                    end
+                    say(string.format("band %d/3 best %.0f%%", bi, bestS * 100))
+                end
+            end
+
+            -- make sure the best map is the one that stays flashed
+            if cur[t.key][1] ~= arr[1] or cur[t.key][#arr] ~= arr[#arr] then
+                send(t.key, arr)
+            end
+            Ecu.scores[t.key] = bestS
+        end
+    end)
+    Ecu.running = false
+    Ecu.manual = false
+    Ecu.tunedFor = veh
+    if ok then
+        local sum, n = 0, 0
+        for _, s in pairs(Ecu.scores) do sum = sum + s n = n + 1 end
+        Ecu.text = string.format("ECU tuned ✓ avg %.0f%%", (n > 0 and sum / n or 0) * 100)
+    else
+        Ecu.text = "ECU tune stopped: " .. tostring(err)
+    end
+    return ok
+end
+
+task.spawn(function()
+    while State.Alive do
+        task.wait(3)
+        if State.AutoEcuTune and not Ecu.running then
+            local veh = MyVehicle()
+            if veh and Ecu.tunedFor ~= veh then
+                pcall(EcuAutoTune, veh)
+                Ecu.tunedFor = veh -- do not loop forever on a vehicle the ECU refuses
+            end
+        end
+    end
+end)
+
+
 -- Master Farm Worker Thread
 task.spawn(function()
     while State.Alive do
         local ok, err = pcall(function()
+            if State.Refueling then
+                SetStatus("Refueling - quests paused")
+                return
+            end
+            State.StepBusy = true
             if State.Kaitun then
                 RunKaitunStep()
             elseif State.AutoMechanic then
@@ -1452,6 +2134,7 @@ task.spawn(function()
                 SetStatus("Idle")
             end
         end)
+        State.StepBusy = false
         if not ok then
             warn("[Honymoon Hub] farm loop error: " .. tostring(err))
             task.wait(1)
@@ -1877,6 +2560,11 @@ local function BuildInterface()
             Callback = function(v) State.KaitunJobs[jobId] = v end
         })
     end
+    KaitunJobBox:AddToggle("FollowRoads", {
+        Text = T("Follow Roads to the Destination", "ขับ/เดินตามถนนไปจนถึงจุดหมาย"),
+        Default = State.FollowRoads,
+        Callback = function(v) State.FollowRoads = v end
+    })
     KaitunJobBox:AddToggle("AntiStuck", {
         Text = T("Anti-Stuck (slowly pass through props)", "กันติด (ทะลุของที่ขวางแบบช้าๆ)"),
         Description = T("When stuck: hop/back up first, then ghost only the blocking props for ~2s. Turn off if you get kicked (267).", "เมื่อติด: กระโดด/ถอยก่อน แล้วค่อยทะลุเฉพาะของที่ขวางประมาณ 2 วิ ถ้าโดนเตะ (267) ให้ปิด"),
@@ -2277,7 +2965,7 @@ local function BuildInterface()
                 file.Tps[i] = math.round((0.98 + t * 0.20) * 100) / 100
                 file.Oil[i] = math.round((0.28 + t * 0.12) * 100) / 100
             end
-            pcall(NetSeal.invoke, EcuRemote, "Send", veh, file)
+            pcall(NetSeal.invoke, EcuRemote, "Send", veh, file, { k = EcuShared.sum(file) })
             task.wait(0.2)
             -- Lock in 2.00x Maximum Gain
             State.ForceMaxEcu = true
@@ -2377,79 +3065,290 @@ local function BuildInterface()
             Library:Notify("Garage", "Vehicle despawned!", 3, "Info")
         end
     })
+    -- ── VEHICLE: work vehicle, ECU auto tune, fuel, driving settings ──
+    xDTaraZ.NotifyFn = function(title, msg, dur, kind) Library:Notify(title, msg, dur or 4, kind or "Info") end
+
+    local workList = { "Auto" }
+    for _, n in ipairs(vehicleNames) do table.insert(workList, n) end
+    GarageBox:AddDropdown("WorkVehicle", {
+        Text = T("Job / Mission Vehicle", "รถที่ใช้ทำงาน/ภารกิจ"),
+        Description = T("Auto = PCX160. Anything else is taken out of your garage and used for every job, mission and refuel trip",
+            "Auto = PCX160 ถ้าเลือกคันอื่นจะเบิกจากโรงรถมาใช้กับทุกงาน ภารกิจ และตอนไปเติมน้ำมัน"),
+        Values = workList,
+        Default = State.WorkVehicle,
+        Callback = function(v)
+            if type(v) == "table" then v = next(v) end
+            if v then State.WorkVehicle = v end
+        end
+    })
+
+    -- ECU auto tune
+    local EcuBox = VehTab:AddLeftGroupbox(T("ECU Tuning Box", "จูนกล่อง ECU"), "cpu")
+    local EcuVehLabel = EcuBox:AddLabel("-")
+    local EcuTuneLabel = EcuBox:AddLabel("ECU: idle")
+    local ecuCode = ""
+    EcuBox:AddInput("EcuCodeRow", {
+        Text = T("ECU code", "โค้ด ECU"),
+        Default = "",
+        Placeholder = "ABCD-EFGH",
+        Callback = function(v) ecuCode = tostring(v or "") end
+    })
+    EcuBox:AddButton({
+        Text = T("Redeem ECU code", "ใช้โค้ด ECU"),
+        Func = function()
+            local veh = MyVehicle()
+            if not veh then Library:Notify("ECU", "No vehicle spawned", 3, "Warning") return end
+            local ok, s1, s2 = pcall(NetSeal.invoke, EcuRemote, "Redeem", veh, ecuCode)
+            Library:Notify("ECU", tostring(ok and s2 or s1 or "failed"), 4, ok and s1 and "Success" or "Warning")
+        end
+    })
+    EcuBox:AddToggle("AutoEcuTune", {
+        Text = T("Auto ECU tune (find best values)", "ออโต้จูน ECU หาค่าที่ดีที่สุด"),
+        Description = T("Tunes the vehicle you are using, one map every ~2s. Turns the fake x2.00 off so you see real results",
+            "จูนรถคันที่ใช้อยู่ทีละแผนที่ (ประมาณ 2 วิ/ครั้ง) และปิดค่า x2.00 ปลอมเพื่อให้เห็นผลจริง"),
+        Default = State.AutoEcuTune,
+        Callback = function(v)
+            State.AutoEcuTune = v
+            if v then
+                xDTaraZ.Ecu.tunedFor = nil
+            end
+        end
+    })
+    EcuBox:AddButton({
+        Text = T("Tune now", "จูนตอนนี้เลย"),
+        Func = function()
+            local veh = MyVehicle()
+            if not veh then Library:Notify("ECU", "No vehicle spawned", 3, "Warning") return end
+            if xDTaraZ.Ecu.running then Library:Notify("ECU", "Already tuning", 3, "Info") return end
+            xDTaraZ.Ecu.manual = true
+            task.spawn(EcuAutoTune, veh)
+        end
+    })
+
+    -- Fuel
+    local FuelBox = VehTab:AddRightGroupbox(T("Fuel", "น้ำมัน"), "fuel")
+    local FuelLabel = FuelBox:AddLabel("Fuel: -")
+    FuelBox:AddToggle("AutoRefuel", {
+        Text = T("Auto refuel", "ออโต้เติมน้ำมัน"),
+        Description = T("When fuel drops below the limit: pause the farm, drive to the gas station along the roads, fill up, continue",
+            "เมื่อน้ำมันต่ำกว่าที่ตั้ง: หยุดภารกิจชั่วคราว ขับตามถนนไปปั๊ม เติมแล้วทำต่อ"),
+        Default = State.AutoRefuel,
+        Callback = function(v) State.AutoRefuel = v end
+    })
+    FuelBox:AddSlider("RefuelBelow", {
+        Text = T("Refuel below (%)", "เติมเมื่อต่ำกว่า (%)"),
+        Min = 5,
+        Max = 90,
+        Default = State.RefuelBelow,
+        Rounding = 0,
+        Callback = function(v) State.RefuelBelow = v end
+    })
+    FuelBox:AddButton({
+        Text = T("Refuel now", "เติมน้ำมันตอนนี้"),
+        Func = function()
+            if State.Refueling then Library:Notify("Fuel", "Already refueling", 3, "Info") return end
+            task.spawn(RefuelNow, false)
+        end
+    })
+
+    -- Driving settings
+    local DriveBox = VehTab:AddRightGroupbox(T("Driving & Speed", "ตั้งค่าการขับรถและความเร็ว"), "gauge")
+    DriveBox:AddSlider("RideSpeedStraight", {
+        Text = T("Straight speed", "ความเร็วรถทางตรง"),
+        Min = 20,
+        Max = 150,
+        Default = State.RideSpeedStraight,
+        Rounding = 0,
+        Callback = function(v) State.RideSpeedStraight = v end
+    })
+    DriveBox:AddSlider("RideSpeedCorner", {
+        Text = T("Corner / turn speed", "ความเร็วตอนเข้าโค้ง/เลี้ยว"),
+        Min = 10,
+        Max = 100,
+        Default = State.RideSpeedCorner,
+        Rounding = 0,
+        Callback = function(v) State.RideSpeedCorner = v end
+    })
+    DriveBox:AddToggle("NoclipAvoid", {
+        Text = T("Noclip + avoid obstacles", "Noclip + หลบสิ่งกีดขวาง"),
+        Description = T("Pathfinding routes around buildings / big things, noclip passes through poles and small fences",
+            "ใช้ Pathfinding นำทางหลบตึก/ของใหญ่ ควบคู่กับ Noclip ทะลุเสา/รั้วเล็กๆ"),
+        Default = State.NoclipAvoid,
+        Callback = function(v)
+            State.NoclipAvoid = v
+            if not v then ClearAvoid() end
+        end
+    })
+    DriveBox:AddToggle("TeleportBypass", {
+        Text = T("Teleport bypass (drive if blocked)", "วาร์ปแบบ bypass (ถ้าวาร์ปไม่ได้ให้ขับไป)"),
+        Default = State.TeleportBypass,
+        Callback = function(v) State.TeleportBypass = v end
+    })
+
+    task.spawn(function()
+        while State.Alive do
+            pcall(function()
+                local veh = MyVehicle()
+                if veh then
+                    local id = tostring(veh:GetAttribute("VehicleId") or veh.Name)
+                    local gain = EcuShared.gain(veh)
+                    local fuel = CareShared.fuel(veh)
+                    local hp = CareShared.health(veh)
+                    EcuVehLabel:SetText(string.format("%s | Gain x%.2f | Fuel %d%% | Engine %d%%", id, gain, math.floor(fuel + 0.5), math.floor(hp + 0.5)))
+                    FuelLabel:SetText(string.format("Fuel: %d%% %s", math.floor(fuel + 0.5), State.Refueling and ("· " .. tostring(State.RefuelInfo)) or ""))
+                else
+                    EcuVehLabel:SetText("No vehicle spawned")
+                    FuelLabel:SetText("Fuel: -")
+                end
+                local E = xDTaraZ.Ecu
+                local parts = {}
+                for _, t in ipairs(EcuShared.TABLES) do
+                    local s = E.scores[t.key]
+                    if s then table.insert(parts, string.format("%s %d%%", t.key, math.floor(s * 100 + 0.5))) end
+                end
+                EcuTuneLabel:SetText(E.text .. (#parts > 0 and ("\n" .. table.concat(parts, " · ")) or ""))
+            end)
+            task.wait(1)
+        end
+    end)
+
     -- ── TAB 5: TELEPORTS ───────────────────────────────────
     Window:AddTabSection(T("Teleports", "การเดินทางและวาร์ป"))
     local TpTab = Window:AddTab(T("Teleports", "วาร์ป"), "map", T("Map locations & Workplaces", "จุดสำคัญรอบเมืองและที่ทำงาน"))
     local LocBox = TpTab:AddLeftGroupbox(T("Official Landmarks", "จุดสำคัญรอบแผนที่"), "pin")
-    local teleportsList = {}
-    local teleportsData = {}
+
+    -- Every place is an entry { label, id, group, en, foot, car }. The dropdown label IS the lookup key,
+    -- so the place you pick is always the place you land on.
+    local TP_ENTRIES, TP_LABELS, TP_BY_LABEL, TP_BY_ID = {}, {}, {}, {}
+    local function NormName(s)
+        s = tostring(s or ""):lower()
+        s = s:gsub("[%s%p]+", " ")
+        s = s:gsub("^%s+", "")
+        s = s:gsub("%s+$", "")
+        return s
+    end
     if MapConfig and MapConfig.TELEPORTS then
         for _, tp in ipairs(MapConfig.TELEPORTS) do
-            local labelName = tp.th or tp.en or tp.id
-            table.insert(teleportsList, labelName)
-            teleportsData[labelName] = tp.foot or tp.car
+            local label = tostring(tp.th or tp.en or tp.id)
+            if TP_BY_LABEL[label] then label = label .. " (" .. tostring(tp.id) .. ")" end
+            local entry = { label = label, id = tp.id, group = tp.group, en = tp.en, foot = tp.foot, car = tp.car }
+            table.insert(TP_ENTRIES, entry)
+            table.insert(TP_LABELS, label)
+            TP_BY_LABEL[label] = entry
+            if tp.id then TP_BY_ID[tp.id] = entry end
         end
     end
-    local selectedTp = teleportsList[1] or "Drag strip (start line) + AUTOWORKS"
+
+    -- exact label/id first, then partial match on name / description / group
+    local function ResolveTeleport(query)
+        local q = NormName(query)
+        if q == "" then return nil end
+        for _, e in ipairs(TP_ENTRIES) do
+            if NormName(e.label) == q or NormName(e.id) == q then return e end
+        end
+        for _, e in ipairs(TP_ENTRIES) do
+            if NormName(e.label):find(q, 1, true) then return e end
+        end
+        for _, e in ipairs(TP_ENTRIES) do
+            if NormName(e.en):find(q, 1, true) or NormName(e.group):find(q, 1, true) then return e end
+        end
+        return nil
+    end
+
+    local function TeleportToEntry(entry)
+        if not entry then return false end
+        local riding = TopVehicleModel()
+        local cf = (riding and entry.car) or entry.foot or entry.car
+        if not cf then return false end
+        State.Gen = State.Gen + 1 -- cancel any walking/riding in progress
+        SmartTeleport(cf)
+        task.wait(0.3)
+        local hrp = SafeRoot()
+        local arrived = hrp and (Vector3.new(hrp.Position.X, 0, hrp.Position.Z) - Vector3.new(cf.Position.X, 0, cf.Position.Z)).Magnitude < 60
+        if arrived then
+            Library:Notify("Teleport", "Teleported to " .. entry.label, 3, "Success")
+        else
+            Library:Notify("Teleport", "Could not reach " .. entry.label .. " (area not loaded?). Try again.", 4, "Warning")
+        end
+        return arrived
+    end
+
+    local selectedTp = TP_LABELS[1]
     LocBox:AddDropdown("LandmarkTp", {
         Text = T("Landmarks", "เลือกสถานที่"),
-        Values = teleportsList,
+        Values = TP_LABELS,
         Default = selectedTp,
-        Callback = function(v) selectedTp = v end
+        Callback = function(v)
+            if type(v) == "table" then v = next(v) end
+            if TP_BY_LABEL[v] then selectedTp = v end
+        end
     })
     LocBox:AddButton({
         Text = T("Teleport to Landmark", "วาร์ปไปยังสถานที่ที่เลือก"),
         Func = function()
-            local targetData = teleportsData[selectedTp]
-            if targetData then
-                local cf
-                if typeof(targetData) == "table" then
-                    cf = CFrame.new(table.unpack(targetData))
-                else
-                    cf = targetData
-                end
-                SafeTeleport(cf)
-                Library:Notify("Teleport", "Teleported to " .. selectedTp, 3, "Success")
+            local entry = TP_BY_LABEL[selectedTp] or ResolveTeleport(selectedTp)
+            if not TeleportToEntry(entry) and not entry then
+                Library:Notify("Teleport", "Place not found", 3, "Warning")
             end
         end
     })
+    local tpQuery = ""
+    LocBox:AddInput("TpByName", {
+        Text = T("Teleport by name", "วาร์ปตามชื่อ"),
+        Default = "",
+        Placeholder = "AUTOWORKS / Gas / Village / race",
+        Callback = function(v) tpQuery = v or "" end
+    })
+    LocBox:AddButton({
+        Text = T("Go to typed name", "วาร์ปไปที่ชื่อที่พิมพ์"),
+        Func = function()
+            local entry = ResolveTeleport(tpQuery)
+            if entry then
+                TeleportToEntry(entry)
+            else
+                Library:Notify("Teleport", "No place matches \"" .. tostring(tpQuery) .. "\"", 4, "Warning")
+            end
+        end
+    })
+
+    -- Job lockers: position comes from the real locker in the map, hardcoded coordinates are only the fallback
     local WorkTpBox = TpTab:AddRightGroupbox(T("Job Places & Lockers", "ที่ทำงานและตู้เปลี่ยนชุด"), "briefcase")
-    WorkTpBox:AddButton({
-        Text = T("Locker: Mechanic (AutoWorks)", "ตู้ชุดช่างซ่อมรถ"),
-        Func = function()
-            SafeTeleport(Vector3.new(148.9, 4.5, -192.6))
-        end
-    })
-    WorkTpBox:AddButton({
-        Text = T("Locker: Construction Builder", "ตู้ชุดช่างก่อสร้าง"),
-        Func = function()
-            SafeTeleport(Vector3.new(103.6, 4.0, 375.2))
-        end
-    })
-    WorkTpBox:AddButton({
-        Text = T("Locker: Food Delivery", "ตู้ชุดไรเดอร์ส่งอาหาร"),
-        Func = function()
-            SafeTeleport(Vector3.new(87.8, 4.5, -118))
-        end
-    })
-    WorkTpBox:AddButton({
-        Text = T("Locker: Courier Office (Soi 28)", "ตู้ชุดส่งพัสดุ (ซอย 28)"),
-        Func = function()
-            SafeTeleport(Vector3.new(-370.2, 4.0, -274.2))
-        end
-    })
+    local LOCKER_ROWS = {
+        { job = "Mechanic", en = "Locker: Mechanic (AutoWorks)", th = "ตู้ชุดช่างซ่อมรถ", fallback = Vector3.new(148.9, 4.5, -192.6) },
+        { job = "Builder", en = "Locker: Construction Builder", th = "ตู้ชุดช่างก่อสร้าง", fallback = Vector3.new(103.6, 4.0, 375.2) },
+        { job = "Delivery", en = "Locker: Food Delivery", th = "ตู้ชุดไรเดอร์ส่งอาหาร", fallback = Vector3.new(87.8, 4.5, -118) },
+        { job = "Courier", en = "Locker: Courier Office (Soi 28)", th = "ตู้ชุดส่งพัสดุ (ซอย 28)", fallback = Vector3.new(-370.2, 4.0, -274.2) },
+    }
+    for _, row in ipairs(LOCKER_ROWS) do
+        WorkTpBox:AddButton({
+            Text = T(row.en, row.th),
+            Func = function()
+                local pos = row.fallback
+                local locker = FindLocker(row.job)
+                if locker then
+                    local prompt = locker:FindFirstChild("LockerPrompt", true)
+                    local part = prompt and prompt.Parent
+                    if part and part:IsA("BasePart") then
+                        pos = (part.CFrame * CFrame.new(0, 0, 2.5)).Position
+                    else
+                        pos = InstPos(locker) or pos
+                    end
+                end
+                State.Gen = State.Gen + 1
+                SmartTeleport(pos)
+                Library:Notify("Teleport", "Teleported to " .. row.en, 3, "Success")
+            end
+        })
+    end
     WorkTpBox:AddButton({
         Text = T("SIAM OIL Gas Station", "ปั๊มน้ำมันสยามออยล์"),
-        Func = function()
-            SafeTeleport(Vector3.new(122.6, 2.5, -396.9))
-        end
+        Func = function() TeleportToEntry(TP_BY_ID.gas) end
     })
     WorkTpBox:AddButton({
         Text = T("1v1 Drag Race Lobby", "ห้องแข่งทางตรง 1v1"),
-        Func = function()
-            SafeTeleport(Vector3.new(-11988, 3.0, 866))
-        end
+        Func = function() TeleportToEntry(TP_BY_ID.race) end
     })
+
     -- ── TAB 6: MISC & PLAYER ───────────────────────────────
     Window:AddTabSection(T("Settings", "การตั้งค่าและตัวละคร"))
     local MiscTab = Window:AddTab(T("Misc", "อื่นๆ"), "gear", T("Movement & Hub Settings", "การเคลื่อนที่และการตั้งค่า"))
