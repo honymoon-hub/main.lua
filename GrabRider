@@ -1,0 +1,2938 @@
+local Enabled = true
+local Vehicle = "Current"
+-- Current = current ride
+-- Random = random ride
+-- PCX160 = City Scooter 160
+-- TYPER23 = Hatchback R
+-- VESPA_S = Classic Scooter S 150
+-- FK8 = Hatchback R Classic
+-- FK8T = Hatchback R Tuned
+-- XMAX = Maxi Scooter 300
+-- SPORT155 = Sport Scooter 155
+-- MAXI250 = Maxi Scooter 250
+-- TOURER350 = Tourer 350
+-- CITY150 = City Scooter 150 R17
+-- FLAT150 = Flat Drag 150
+-- STREET160 = Street Scooter 160
+-- PCX160SA = Metro 160 Shadow
+-- NMAX20 = Midi Max 155
+-- XMAX23G = Grand Max 300 Shadow
+-- XMAX23W = Grand Max 300 X
+-- GIORNO23 = Retro Round 125 Plus
+-- LEAD25 = Family Box 125 S
+-- LEAD25G = Family Box 125 Ghost
+-- FINO115 = Retro Mini 115
+-- CHER74 = Sport Step Drag 150
+-- CHER150 = Sport Step Drag 150 Blue
+-- CHER72 = Sport Step Drag 150 Black
+-- DREAM_RACE = Classic Step 125 Racer
+-- DREAM_DRAG = Classic Step Drag 125
+-- WAVE_STREET = Village Step 110 Street
+-- WAVE_BARE = Village Step 110 Bare
+-- WAVE_SILVER = Village Step 100 Silver
+-- WAVE_KAGE = Village Step 125 Kage
+-- WAVE_110I = Village Step 110i Drag
+-- WAVE_WHITE = Village Step 125 White
+-- WAVE125S = Village Step 125 S
+-- SPORT_STEP = Sport Step 125
+
+local env=getgenv()
+local prior=env.__MahanakhonGrabStandalone
+if prior and prior.Destroy then prior:Destroy()end
+if not Enabled then return "Grab disabled"end
+
+local Players=game:GetService("Players")
+local RS=game:GetService("ReplicatedStorage")
+local RunService=game:GetService("RunService")
+local Http=game:GetService("HttpService")
+local player=Players.LocalPlayer
+assert(player,"Join game first")
+local GameShared=require(RS:WaitForChild("GameShared"))
+local JobShared=require(RS:WaitForChild("JobShared"))
+local EcuShared=require(RS:WaitForChild("EcuShared"))
+local BikeShared=require(RS:WaitForChild("PCX160Shared"))
+local Net=require(RS:WaitForChild("NetSeal"))
+local Remotes=RS:WaitForChild("GameRemotes")
+local Runtime={Alive=true,Farm={Status="Ready",Enabled={Grab=true}},ShopVehicleFuel={},Connections={}}
+env.__MahanakhonGrabStandalone=Runtime
+function Runtime:SetFarmStage(_,stage)self.Stage=stage end
+function Runtime:UpdateFarmSession()end
+function Runtime:SendWorkWebhook()end
+function Runtime:HoldPrompt(prompt,keepGoing)
+    assert(prompt and prompt.Parent and prompt.Enabled,"No prompt")
+    local ok,reason=pcall(function()
+        prompt:InputHoldBegin()
+        local deadline=os.clock()+math.max(.1,prompt.HoldDuration)+.25
+        repeat
+            assert(self.Alive and(not keepGoing or keepGoing()),"Stopped")
+            task.wait(.05)
+        until os.clock()>=deadline
+    end)
+    pcall(function()prompt:InputHoldEnd()end)
+    assert(ok,reason)
+end
+function Runtime:Destroy()
+    self.Alive=false;self.Farm.Enabled.Grab=false
+    if self.Grab then self.Grab.Shutdown()end
+    for _,connection in self.Connections do connection:Disconnect()end
+end
+local reloadState=getfenv().STATE
+if type(reloadState)=="table"then reloadState.cleanup=function()Runtime:Destroy()end end
+
+function Runtime:IsPassengerLeg(state,encoded)
+    if state~="ToHome"then return false end
+    local ok,data=pcall(Http.JSONDecode,Http,encoded or"")
+    if not ok or type(data)~="table"then return true end
+    return data.kind~="food"and data.kind~="parcel"
+end
+function Runtime:CanEmptyVehicleTween(model)
+    if self:IsPassengerLeg(player:GetAttribute("DeliveryState"),player:GetAttribute("DeliveryJob"))then return false end
+    local humanoid=player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if not model then return false end
+    if model:GetAttribute("HasPassenger")==true then return false end
+    for _,part in ipairs(model:GetDescendants())do
+        if(part:IsA("Seat")or part:IsA("VehicleSeat"))and part.Occupant and part.Occupant~=humanoid then return false end
+    end
+    return true
+end
+
+function Runtime:CanVehicleTween(model)
+    local h=player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    return model~=nil and model.Parent~=nil and model:GetAttribute("OwnerUserId")==player.UserId
+        and h~=nil and h.Health>0 and h.SeatPart~=nil and h.SeatPart:IsDescendantOf(model)
+end
+function Runtime:IsSharpDriveTurn(angle)
+    return type(angle)=="number"and angle>=math.rad(35)
+end
+
+function Runtime:CanShopVehicleTween(origin,finish,heading,arrival)
+    local delta=Vector3.new(finish.X-origin.X,0,finish.Z-origin.Z)
+    if delta.Magnitude<.1 then return false end
+
+    if math.abs(origin.X)<=90 and math.abs(finish.X)<=90 and origin.X*finish.X<0 then return false end
+    if not arrival then
+        local forward=Vector3.new(heading.X,0,heading.Z)
+        if forward.Magnitude<.1 or forward.Unit:Dot(delta.Unit)<.92 then return false end
+        if math.abs(delta.X)>math.max(5,delta.Magnitude*.2)then return false end
+        if delta.Magnitude>35 then return false end
+    elseif delta.Magnitude>45 then return false end
+    return true
+end
+
+function Runtime:PickShopVehicle(list,bikesOnly)
+    local spawned=workspace:FindFirstChild("SpawnedVehicles")
+    for _,vehicle in ipairs(spawned and spawned:GetChildren()or{})do
+        if vehicle:GetAttribute("OwnerUserId")==player.UserId then
+            local id=vehicle:GetAttribute("VehicleId")
+            local fuel=tonumber(vehicle:GetAttribute("Fuel"))
+            if id and fuel then self.ShopVehicleFuel[id]=fuel end
+        end
+    end
+    local choices,alternatives={},{}
+    for _,entry in ipairs(list.vehicles or{})do
+        local definition=GameShared.vehicle(entry.id)
+        if definition and not entry.locked and(not bikesOnly or definition.category~="Car")and(self.ShopVehicleFuel[entry.id]==nil or self.ShopVehicleFuel[entry.id]>5)then
+            table.insert(choices,entry.id)
+            if entry.id~=self.ShopVehicleLast and entry.id~=list.active then table.insert(alternatives,entry.id)end
+        end
+    end
+    local pool=#alternatives>0 and alternatives or choices
+    assert(#pool>0,"No fueled vehicle")
+    local id=pool[math.random(1,#pool)]
+    self.ShopVehicleLast=id
+    return id
+end
+
+function Runtime:WorkError(message)
+    local text=tostring(message or "Failed")
+    self.LastTechnicalError=text
+    return text
+end
+local buildStationWorker
+local function newGrab(owner,vehicleId,jobId)
+    jobId=jobId or"Grab"
+    local mode=jobId=="Courier"and"parcel"or jobId=="Delivery"and"food"or"grab"
+    local jobLabel="Grab"
+    local Graph=require(RS.RoadGraph)
+    local PistonShared=require(RS.PistonShared)
+    local GearShared=require(RS.GearShared)
+    local PathfindingService=game:GetService("PathfindingService")
+    local CareShared=require(RS.CareShared)
+    local ShopShared=require(RS.ShopShared)
+    local HttpService=Http
+    local Config={JobId=jobId,Mode=mode,VehicleId=vehicleId or"Current",ObstacleTween=true,TurnTween=true,KeepShopLane=false,DirectMainRoad=true,MaxTrips=0,ComfortDecel=38,TurnGain=1,CurveAccel=32,BrakeZone=230,
+        StopRadius=22,LaneOffset=28,TripTimeout=600,ApproachSpeed=12,StallTimeout=180}
+    local Worker:any={JobId=jobId,Config=Config,Running=false,Cancelled=false,Status="Ready",Trips=0,Earned=0,PeakSpeed=0,FuelSpent=0,Recoveries=0}
+local session
+local riderHum
+local sessionKind
+local boosted = {}
+local constraints = {}
+local excluded = {}
+local originalFilter
+local inputPatches = {}
+local motionPatches = {}
+local castParams=RaycastParams.new();castParams.FilterType=Enum.RaycastFilterType.Exclude;castParams.RespectCanCollide=true
+local oldWheelie
+local function flat(v) return Vector3.new(v.X, 0, v.Z) end
+local function cancelled()
+    return Worker.Cancelled or not owner.Alive
+end
+local function status(message)
+    Worker.Status = message
+    owner.Farm.Status=message
+end
+local function check()
+    assert(not cancelled(), "Stopped")
+    assert(player.Parent and player.Character, "Character unavailable")
+    local paused=0
+    if Config.ShopKey then local shop=owner:GetPistonTrack();assert(shop.Open and shop.Key==Config.ShopKey,"Shop closed or moved")end
+    local watch=Worker.LegWatch
+    if watch then
+        local ok,fare=pcall(HttpService.JSONDecode,HttpService,player:GetAttribute("DeliveryJob")or"{}")
+        if not ok or tostring(fare.acceptedAt)~=watch.FareId then
+            Worker.LegWatch=nil;watch=nil
+        end
+    end
+    if watch and player:GetAttribute("DeliveryState")==watch.State and player:GetAttribute("DeliveryArrived")~=true
+        and(os.clock()-watch.ProgressAt>=Config.StallTimeout
+            or Config.RoadWorkArrival and watch.StartedAt and os.clock()-watch.StartedAt>=300
+                and(Worker.Recoveries or 0)-(watch.StartRecoveries or 0)>=3)then
+        Worker.NeedsReset=true
+        error("Route stalled; recovering",0)
+    end
+    if session then
+        if session.crashed or not session.model.Parent or session.model:GetAttribute("Crashed")==true then
+            Worker.NeedsFreshVehicle=true;Worker.NoWalk=true
+            Worker.CommandThrottle,Worker.CommandSteer=0,0
+            error("Vehicle crashed; recovering",0)
+        end
+        if session.seat.Occupant~=riderHum then
+
+            Worker.NoWalk=true
+            error("Seat released; remounting",0)
+        end
+    end
+    return paused
+end
+local lastDeliveryInvoke=-math.huge
+local function invoke(remote, action, ...)
+    check()
+    if remote==Remotes.Delivery then
+        while os.clock()-lastDeliveryInvoke<.8 do check();task.wait(.05)end
+        lastDeliveryInvoke=os.clock()
+    end
+    return Net.invoke(remote, action, ...)
+end
+local function stopInputs()
+    Worker.CommandThrottle, Worker.CommandSteer = 0, 0
+    if session and session.seat.Parent then
+        session.seat.ThrottleFloat = 0
+        session.seat.SteerFloat = 0
+    end
+end
+local function brake()
+    if not session or not session.seat.Parent then return end
+    local deadline = os.clock() + math.abs(session.speed or 0) / Config.ComfortDecel + 4
+    while not Worker.ShuttingDown and session.chassis.Parent and session.seat.Occupant == riderHum
+        and math.abs(session.speed or 0) > .35 and os.clock() < deadline do
+        session.seat.SteerFloat = 0
+        session.seat.ThrottleFloat = (session.speed or 0) > 0 and -1 or 1
+        Worker.CommandSteer, Worker.CommandThrottle = 0, session.seat.ThrottleFloat
+        RunService.Heartbeat:Wait()
+    end
+    stopInputs()
+    Worker.LastBrakeSpeed = session.chassis.Parent and flat(session.chassis.AssemblyLinearVelocity).Magnitude or 0
+end
+local function restore()
+    for _, patch in motionPatches do
+        if getupvalue(patch.step, patch.index) == patch.replacement then
+            setupvalue(patch.step, patch.index, patch.original)
+        end
+    end
+    table.clear(motionPatches)
+    for _, patch in inputPatches do
+        if getupvalue(patch.step, patch.index) == patch.replacement then
+            setupvalue(patch.step, patch.index, patch.original)
+        end
+    end
+    table.clear(inputPatches)
+    for _, constraint in constraints do constraint:Destroy() end
+    table.clear(constraints)
+    table.clear(excluded)
+    if session and originalFilter then
+        session.params.FilterDescendantsInstances = originalFilter
+    end
+    originalFilter = nil
+    if session and oldWheelie~=nil then session.wheelieHeld=oldWheelie end
+    for vehicle, old in boosted do
+        if vehicle.Parent then
+            if old.turnAssist then vehicle:SetAttribute("MaxSteer", old.steer) end
+        end
+    end
+    table.clear(boosted)
+end
+function Worker.Stop()
+    Worker.Cancelled = true
+    if Worker.RoadExitTween then Worker.RoadExitTween:Cancel();Worker.RoadExitTween=nil end
+    if Worker.Enrollment then Worker.Enrollment.Stop()end
+    if Worker.VehicleTweenCleanup then Worker.VehicleTweenCleanup()end
+    if Worker.RoadFootCleanup then Worker.RoadFootCleanup()end
+    if Worker.VehicleTurnCleanup then Worker.VehicleTurnCleanup()end
+    stopInputs()
+end
+function Worker.Shutdown()Worker.ShuttingDown=true;Worker.Stop();restore()end
+
+local function walk(goal)
+    local character = player.Character
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    local root = character:WaitForChild("HumanoidRootPart")
+    local path = PathfindingService:CreatePath({
+        AgentRadius = 2, AgentHeight = 5, AgentCanJump = true, WaypointSpacing = 12,
+    })
+    path:ComputeAsync(root.Position, goal)
+    assert(path.Status == Enum.PathStatus.Success, "Cannot walk to the road")
+    for _, point in path:GetWaypoints() do
+        check()
+        if point.Action == Enum.PathWaypointAction.Jump then humanoid.Jump = true end
+        humanoid:MoveTo(point.Position)
+        local deadline = os.clock() + 9
+        while (flat(root.Position) - flat(point.Position)).Magnitude > 3.5 do
+            check()
+            assert(os.clock() < deadline, "Walking route blocked")
+            task.wait(.08)
+        end
+    end
+    humanoid:MoveTo(root.Position)
+end
+
+local function vehicleModel(seat)
+    local model = seat and seat:FindFirstAncestorOfClass("Model")
+    while model and model.Parent ~= workspace.SpawnedVehicles do
+        model = model.Parent:FindFirstAncestorOfClass("Model")
+    end
+    return model
+end
+
+local function isCar(vehicle)
+    local definition = GameShared.vehicle(vehicle:GetAttribute("VehicleId") or vehicle.Name)
+    return definition and definition.category == "Car"
+end
+
+local function nativeLimits(vehicle)
+    local _, _, multiplier = GameShared.upgradeScales(vehicle)
+    local tucked = not isCar(vehicle) and vehicle:GetAttribute("Tuck") == true
+    local tuckMultiplier = tucked and BikeShared.TUCK_SPEED_BONUS or 1
+    local capKmh = math.min(EcuShared.ABS_KMH,
+        tucked and EcuShared.TUCK_TOP_KMH or EcuShared.TOP_KMH,
+        PistonShared.capKmh(vehicle, tucked) or math.huge)
+    local nativeTop = GameShared.driveTop(vehicle, multiplier, tuckMultiplier)
+    return math.min(nativeTop, capKmh / EcuShared.KMH_PER_STUD), capKmh
+end
+
+local function hookInput(driver)
+    check()
+    for _, value in getupvalues(driver.start) do
+        if type(value) == "function" and debug.info(value, "n") == "step" then
+            for index, input in getupvalues(value) do
+                if type(input) == "function" and debug.info(input, "n") == "keysToSeat" then
+                    for _, patch in inputPatches do if patch.step == value then return end end
+                    local replacement = function(state)
+                        if state == session then
+                            state.seat.ThrottleFloat = Worker.CommandThrottle or 0
+                            state.seat.SteerFloat = Worker.CommandSteer or 0
+                            if sessionKind=="Bike"then state.wheelieHeld=false end
+                        else return input(state)end
+                    end
+                    table.insert(inputPatches, {step = value, index = index,
+                        original = input, replacement = replacement})
+                    setupvalue(value, index, replacement)
+                    return
+                end
+            end
+        end
+    end
+end
+
+local function prepareVehicle()
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    local existing = vehicleModel(humanoid.SeatPart)
+    if Config.VehicleId == "Current" then
+        Config.VehicleId = existing and existing:GetAttribute("OwnerUserId") == player.UserId
+            and existing:GetAttribute("VehicleId") or player:GetAttribute("ActiveVehicle") or "PCX160"
+    end
+    if existing then
+        local client = isCar(existing) and player.PlayerScripts.CarClient or player.PlayerScripts.PCX160Client
+        local driver = require(client.Driver)
+        for _, value in getupvalues(driver.start) do
+            if type(value) == "table" and value.model == existing and value.seat == humanoid.SeatPart then
+                session, riderHum = value, humanoid
+                hookInput(driver)
+                brake()
+                session = nil
+                break
+            end
+        end
+    end
+    local list
+    for _ = 1, 3 do
+        list = invoke(Remotes.Garage, "List")
+        if type(list) == "table" then break end
+        task.wait(.8)
+    end
+    assert(type(list) == "table", "Garage list unavailable")
+    if Config.RandomVehicle and not Config.RandomChosen then
+        local fare=player:GetAttribute("DeliveryState")
+        if fare=="ToShop"or fare=="ToHome"then
+            Config.VehicleId=existing and existing:GetAttribute("VehicleId")or list.active or player:GetAttribute("ActiveVehicle")
+            if not Config.VehicleId then
+                Config.VehicleId=owner:PickShopVehicle(list,Config.WorkVehicle)
+                Worker.ReplacedMissingFareVehicle=true
+            end
+            assert(Config.VehicleId,"No vehicle for fare")
+        else Config.VehicleId=owner:PickShopVehicle(list,Config.WorkVehicle)end
+        Config.RandomChosen=true
+    end
+    task.wait(math.max(.8, tonumber(list.cooldown) or 0))
+    local available = {}
+    local selectedAllowed = false
+    for _, entry in list.vehicles or {} do
+        local definition = GameShared.vehicle(entry.id)
+        available[entry.id] = definition and definition.th or entry.id
+        if entry.id == Config.VehicleId then selectedAllowed = true end
+    end
+    Worker.Vehicles = available
+    Worker.GarageLimit = list.max
+    assert(selectedAllowed, "This vehicle is not available in your Garage: " .. tostring(Config.VehicleId))
+    local seatedVehicle = vehicleModel(humanoid.SeatPart)
+    if seatedVehicle and (seatedVehicle:GetAttribute("VehicleId") ~= Config.VehicleId
+        or seatedVehicle:GetAttribute("OwnerUserId") ~= player.UserId) then
+        local fareState = player:GetAttribute("DeliveryState")
+        assert(fareState ~= "ToShop" and fareState ~= "ToHome", "Finish the active fare before switching vehicles")
+        session = nil
+        if isCar(seatedVehicle) then
+            Net.fire(RS.CarRemote, "Exit", seatedVehicle)
+        else
+            Net.fire(RS.PCX160Remote, "Dismount", "Start")
+        end
+        local deadline = os.clock() + 6
+        while humanoid.SeatPart and os.clock() < deadline do task.wait(.1) end
+        assert(not humanoid.SeatPart, "Could not leave the previous vehicle")
+        task.wait(1.2)
+    end
+    if not humanoid.SeatPart then
+        status("Remounting")
+        local vehicle
+        for _,candidate in workspace:WaitForChild("SpawnedVehicles"):GetChildren()do
+            if candidate:GetAttribute("OwnerUserId")==player.UserId and candidate:GetAttribute("VehicleId")==Config.VehicleId then vehicle=candidate;break end
+        end
+        if not vehicle then
+            if Config.GeneralTravelTween then Worker.TweenCharacterToRoad();Worker.ExitedToRoad=true
+            elseif Config.GrabRouteV2 then Worker.MoveCharacterToRoad();Worker.ExitedToRoad=true end
+            if Config.SpawnOnRoad then Worker.ExitedToRoad=false end
+            Worker.SpawnOrigin=tostring(player.Character.HumanoidRootPart.Position)
+            local ok,message
+            for attempt=1,3 do
+                ok,message=invoke(Remotes.Garage,"Spawn",Config.VehicleId)
+                if ok then break end
+                task.wait(1.2)
+            end
+            assert(ok,tostring(message));task.wait(.8)
+        end
+        for _, candidate in workspace:WaitForChild("SpawnedVehicles"):GetChildren() do
+            if candidate:GetAttribute("OwnerUserId") == player.UserId
+                and candidate:GetAttribute("VehicleId") == Config.VehicleId then
+                vehicle = candidate
+                break
+            end
+        end
+        if not vehicle then
+            local deadline=os.clock()+6
+            repeat
+                check()
+                for _,candidate in ipairs(workspace.SpawnedVehicles:GetChildren())do
+                    if candidate:GetAttribute("OwnerUserId")==player.UserId and candidate:GetAttribute("VehicleId")==Config.VehicleId then vehicle=candidate;break end
+                end
+                if not vehicle then task.wait(.2)end
+            until vehicle or os.clock()>deadline
+        end
+        assert(vehicle, "Your vehicle did not spawn")
+        Worker.SpawnLocation = tostring(vehicle:GetPivot().Position)
+        if (player.Character.HumanoidRootPart.Position - vehicle:GetPivot().Position).Magnitude > 14 then
+            local approach = vehicle:GetPivot():PointToWorldSpace(Vector3.new(-8, 0, 0))
+            if Worker.NoWalk and jobId~="Grab"then Worker.NeedsFreshVehicle=true;error("Vehicle too far; retrying",0)end
+            walk(approach)
+        end
+        if isCar(vehicle) then
+            Net.fire(RS.CarRemote, "Enter", vehicle, "Driver")
+        else
+            Net.fire(RS.PCX160Remote, "Mount", vehicle, "Drive")
+        end
+        local deadline = os.clock() + 5
+        while not humanoid.SeatPart and os.clock() < deadline do check() task.wait(.1) end
+    end
+    assert(humanoid.SeatPart, "Could not enter the selected vehicle")
+    local vehicle = assert(vehicleModel(humanoid.SeatPart), "Vehicle model unavailable")
+    sessionKind = isCar(vehicle) and "Car" or "Bike"
+    local client = sessionKind == "Car" and player.PlayerScripts.CarClient or player.PlayerScripts.PCX160Client
+    local driver = require(client.Driver)
+    session = nil
+    for _, value in getupvalues(driver.start) do
+        if type(value) == "table" and value.model == vehicle and value.chassis then
+            session = value
+            break
+        end
+    end
+    assert(type(session) == "table" and session.chassis, "Driver state unavailable")
+    riderHum = humanoid
+    hookInput(driver)
+    assert(session.seat == humanoid.SeatPart and humanoid.SeatPart:IsA("VehicleSeat"), "Sit in the driver seat")
+    if not vehicle:GetAttribute("EngineOn") then
+        if sessionKind == "Car" then Net.fire(RS.CarRemote, "Engine", vehicle, true)
+        else Net.fire(RS.PCX160Remote, "Engine", true) end
+        task.wait(2.5)
+    end
+    if sessionKind == "Bike" and vehicle:GetAttribute("StandDown") then
+        Net.fire(RS.PCX160Remote, "Stand", false)
+        task.wait(.6)
+    end
+    assert(isnetworkowner(session.chassis), "The client is not controlling the bike")
+    originalFilter = table.clone(session.params.FilterDescendantsInstances)
+    castParams.FilterDescendantsInstances={session.model,player.Character,workspace.CurrentCamera}
+    oldWheelie=session.wheelieHeld==true
+    Worker.Vehicle=session.model
+    Worker.NoWalk=false
+    boosted[vehicle] = {steer = vehicle:GetAttribute("MaxSteer"), turnAssist = sessionKind == "Car"}
+end
+
+local function speedLimit()
+    local vehicle = session.model
+    local nativeTop, capKmh = nativeLimits(vehicle)
+    local allowed = nativeTop * .98
+    Worker.Limits = {
+        BaseStuds = vehicle:GetAttribute("MaxSpeed"),
+        NativeTopStuds = nativeTop, NativeTopKmh = nativeTop * EcuShared.KMH_PER_STUD,
+        NativeCapKmh = capKmh, TargetStuds = allowed,
+        TargetKmh = allowed * EcuShared.KMH_PER_STUD,
+        VehicleId = vehicle:GetAttribute("VehicleId"), Kind = sessionKind,
+    }
+    return allowed
+end
+
+local function alleyMouth(target)
+    if Config.FareAlleyRouting and(math.abs(target.X)>1000 or math.abs(target.Z)>3300)then return nil end
+    if math.abs(target.X)<=85 then return nil end
+    local route=Graph.route(Vector3.new(0,target.Y,target.Z),target)
+    local lastMain
+    for _,point in ipairs(route or{})do
+        if math.abs(point.X)<2 then lastMain=point
+        elseif lastMain and math.abs(point.X)>12 then return Vector3.new(target.X<0 and-Config.LaneOffset or Config.LaneOffset,target.Y,lastMain.Y)end
+    end
+end
+
+function Worker.IsDestinationApproach(target)
+    if not Config.FareAlleyRouting or Worker.AlleyPhase~="destination"or not session then return false end
+    target=target or Worker.LegTarget
+    local state=player:GetAttribute("DeliveryState")
+    if not target or(state~="ToShop"and state~="ToHome")then return false end
+    local source=session.chassis.Position
+    return source.X*target.X>0
+        and math.abs(source.X)<=1000 and math.abs(target.X)<=1000 and math.abs(target.Z)<=3300
+        and math.abs(source.Z-target.Z)<=80
+end
+function Worker.DestinationAlleyRoute(source,target)
+    if not Config.FareAlleyRouting or source.X*target.X<=0
+        or math.abs(target.X)<=85 or math.abs(target.X)>1000 or math.abs(source.X)>1000
+        or math.abs(source.X)<=Config.LaneOffset+10
+        or math.abs(target.Z)>3300 or math.abs(source.Z-target.Z)>80 then return nil end
+    local mouth=alleyMouth(target)
+    if not mouth or math.abs(source.Z-mouth.Z)>35 then return nil end
+    local points={}
+
+    for _,point in ipairs({Vector2.new(source.X,source.Z),Vector2.new(target.X,source.Z),Vector2.new(target.X,target.Z)})do
+        if #points==0 or(points[#points]-point).Magnitude>.1 then table.insert(points,point)end
+    end
+    if #points<2 then return nil end
+    Worker.AlleyPhase="destination";Worker.AlleyExit=nil
+    Worker.LastAlleyRoute={Source=tostring(source),Target=tostring(target),Mouth=tostring(mouth)}
+    return points
+end
+local function laneRoute(target)
+    local source=session.chassis.Position
+    local inside=Worker.DestinationAlleyRoute(source,target)
+    if inside then return inside end
+    if Config.DirectMainRoad and math.abs(source.X)<85 and math.abs(target.X)<400 and math.abs(source.Z)<3300 and math.abs(target.Z)<3300 then
+        local lane=target.X<0 and-Config.LaneOffset or Config.LaneOffset
+        local mouth=alleyMouth(target)
+        local entryZ=mouth and mouth.Z or target.Z
+        local result={}
+        for _,point in ipairs({Vector2.new(source.X,source.Z),Vector2.new(lane,source.Z),Vector2.new(lane,entryZ),Vector2.new(target.X,entryZ),Vector2.new(target.X,target.Z)})do
+            if #result==0 or(result[#result]-point).Magnitude>3 then table.insert(result,point)end
+        end
+        return result
+    end
+    local sourceSide = source.X < 0 and -1 or 1
+    local targetSide = target.X < 0 and -1 or 1
+
+    local start = math.abs(source.X) < 72
+        and Vector3.new(sourceSide * Config.LaneOffset, source.Y, source.Z) or source
+    local raw = Graph.route(start, target)
+    assert(raw and #raw > 0, "No GPS route")
+    if (flat(start) - flat(source)).Magnitude > 3 then
+        table.insert(raw, 1, Vector2.new(source.X, source.Z))
+    end
+    local firstAxis
+    for i, point in raw do if math.abs(point.X) < 1 then firstAxis = i break end end
+    local lastAxis=firstAxis
+    if firstAxis then
+        while lastAxis<#raw and math.abs(raw[lastAxis+1].X)<1 do lastAxis+=1 end
+    end
+    local crossing
+    if firstAxis and sourceSide ~= targetSide then
+        local z = raw[firstAxis].Y
+        local intervals = {}
+        local median = workspace.Map.Road:FindFirstChild("Median")
+        if median then
+            for _, part in median:GetDescendants() do
+                if part:IsA("BasePart") and part.Size.Z > 8 and math.abs(part.Position.X) < 12 then
+                    table.insert(intervals, {part.Position.Z - part.Size.Z / 2, part.Position.Z + part.Size.Z / 2})
+                end
+            end
+        end
+        table.sort(intervals, function(a, b) return a[1] < b[1] end)
+        local merged = {}
+        for _, interval in intervals do
+            local last = merged[#merged]
+            if last and interval[1] <= last[2] + 2 then
+                last[2] = math.max(last[2], interval[2])
+            else
+                table.insert(merged, {interval[1], interval[2]})
+            end
+        end
+        local finish=raw[lastAxis].Y
+        local candidates={finish,z};local bestCost
+        for _,interval in ipairs(merged)do table.insert(candidates,interval[1]-18);table.insert(candidates,interval[2]+18)end
+        for _,at in ipairs(candidates)do
+            local open=true
+            for _,interval in ipairs(merged)do if at>interval[1]-17 and at<interval[2]+17 then open=false;break end end
+            local cost=math.abs(at-z)+math.abs(finish-at)+math.abs(finish-at)*.001
+            if open and(not bestCost or cost<bestCost)then crossing,bestCost=at,cost end
+        end
+    end
+    local points = {}
+    local inserted = false
+    for index, point in raw do
+        if math.abs(point.X) < 1 then
+            if sourceSide~=targetSide and crossing then
+                if index==firstAxis then
+                table.insert(points, Vector2.new(sourceSide * Config.LaneOffset, point.Y))
+                table.insert(points, Vector2.new(sourceSide * Config.LaneOffset, crossing))
+                table.insert(points, Vector2.new(targetSide * Config.LaneOffset, crossing))
+                table.insert(points, Vector2.new(targetSide * Config.LaneOffset,raw[lastAxis].Y))
+                end
+                continue
+            end
+            inserted = true
+            point = Vector2.new(targetSide * Config.LaneOffset, point.Y)
+        end
+        if #points == 0 or (points[#points] - point).Magnitude > 3 then table.insert(points, point) end
+    end
+
+    local centres = table.clone(points)
+    for i = 2, #points - 1 do
+        local before, here, after = centres[i - 1], centres[i], centres[i + 1]
+        if math.abs(here.X) > Config.LaneOffset + 2 then
+            local incoming, outgoing = here - before, after - here
+            if incoming.Magnitude > .1 and outgoing.Magnitude > .1 then
+                local a = Vector2.new(incoming.Unit.Y, -incoming.Unit.X)
+                local b = Vector2.new(outgoing.Unit.Y, -outgoing.Unit.X)
+                local sum = a + b
+                if sum.Magnitude > .2 then
+                    local normal = sum.Unit
+                    points[i] = here + normal * math.min(9, 6 / math.max(.65, normal:Dot(a)))
+                end
+            end
+        end
+    end
+    return points
+end
+
+local safetyAt = 0
+local gearAt = 0
+local function automaticGear(speed, top)
+    if not session.gears or os.clock() - gearAt < .3 then return end
+    local gear = session.gear or 1
+    local direction
+    if gear < session.gears and speed > top * GearShared.share(session.gears, gear) * .88 then
+        direction = 1
+    elseif gear > 1 and speed < top * GearShared.share(session.gears, gear - 1) * .55 then
+        direction = -1
+    end
+    if direction then
+        local nextGear = GearShared.shift(session.gears, gear, direction, speed, top)
+        if nextGear then
+            session.gear = nextGear
+            session.model:SetAttribute("Gear", nextGear)
+            gearAt = os.clock()
+        end
+    end
+end
+
+local function safety()
+    if session and sessionKind=="Bike"then session.wheelieHeld=false end
+end
+local function castSize()return sessionKind=="Car"and Vector3.new(6.5,1.8,3)or Vector3.new(2.6,1.5,2)end
+local function backOff()
+    if Worker.IsDestinationApproach()then
+        Worker.BlockedAlleyReverse=(Worker.BlockedAlleyReverse or 0)+1
+        return
+    end
+    brake()
+    local start=session.chassis.Position
+    local back=-(CFrame.Angles(0,session.heading,0)).LookVector
+    local hit=workspace:Blockcast(CFrame.lookAt(start+Vector3.new(0,1,0),start+Vector3.new(0,1,0)+back),castSize(),back*16,castParams)
+    local room=hit and math.max(0,hit.Distance-4)or 12
+    if room<3 then return end
+    local deadline=os.clock()+3
+    local heading=Worker.Telemetry and Worker.Telemetry.HeadingError or 0
+    local steer=math.abs(heading)>.7 and math.clamp(heading,-1,1)or 0
+    while(flat(session.chassis.Position)-flat(start)).Magnitude<math.min(12,room)and os.clock()<deadline do
+        check();safety();Worker.CommandThrottle,Worker.CommandSteer=-.55,steer
+        session.seat.ThrottleFloat=-.55;session.seat.SteerFloat=steer;task.wait(.03)
+    end
+    brake()
+end
+local function groundY(position)
+    local params=RaycastParams.new()
+    params.FilterType=Enum.RaycastFilterType.Include
+    params.FilterDescendantsInstances={workspace:FindFirstChild("Map")}
+    params.RespectCanCollide=true
+    local hit=workspace:Raycast(position+Vector3.new(0,4,0),Vector3.new(0,-24,0),params)
+
+    return hit and hit.Material==Enum.Material.Asphalt and hit.Normal.Y>.8 and hit.Position.Y or position.Y-1
+end
+local function routeCast(from,to)
+    local span=to-from
+    if span.Magnitude>900 then
+        local middle=from+span.Unit*900
+        return routeCast(from,middle)or routeCast(middle,to)
+    end
+    if jobId=="Grab"and Config.GrabRouteV2 and Worker.GrabSweep then
+
+        local y=session.chassis.Position.Y
+        local a,b=Vector3.new(from.X,y,from.Z),Vector3.new(to.X,y,to.Z)
+        if Worker.GrabSweep(a,b)then return nil end
+        return {Instance=Worker.LastBlockedInstance,Position=a,Distance=0,Normal=Vector3.new(1,0,0)}
+    end
+    local delta=to-from
+    if delta.Magnitude>900 then
+        local middle=from+delta.Unit*900
+        return routeCast(from,middle)or routeCast(middle,to)
+    end
+    if delta.Magnitude<.1 then return nil end
+    local fromY,toY=groundY(from),groundY(to)
+    local bodyFrom,bodyTo=Vector3.new(from.X,fromY+1.6,from.Z),Vector3.new(to.X,toY+1.6,to.Z)
+    local body=workspace:Blockcast(CFrame.lookAt(bodyFrom,bodyTo),castSize(),bodyTo-bodyFrom,castParams)
+    local a,b=Vector3.new(from.X,fromY+.32,from.Z),Vector3.new(to.X,toY+.32,to.Z)
+    local low=workspace:Blockcast(CFrame.lookAt(a,b),Vector3.new(castSize().X,.5,1.4),b-a,castParams)
+    local function blocks(hit)
+        if not hit or hit.Normal.Y>=.65 then return false end
+        local part=hit.Instance
+        if part:IsA("BasePart")then
+            local cf,size=part.CFrame,part.Size
+            local height=math.abs(cf.RightVector.Y)*size.X+math.abs(cf.UpVector.Y)*size.Y+math.abs(cf.LookVector.Y)*size.Z
+            if height<.18 then return false end
+        end
+        return true
+    end
+    if not blocks(body)then body=nil end
+    if not blocks(low)then low=nil end
+    if low and(not body or low.Distance<body.Distance)then return low end
+    return body
+end
+local function detourRoute(route,index,obstacle)
+    local source=session.chassis.Position;local origin=flat(source)
+    local destination=index
+    local goal
+    local previous=origin
+    local distanceToGoal=0
+    for future=index,#route do
+        destination=future
+        local point=Vector3.new(route[future].X,0,route[future].Y)
+        local segment=point-previous
+        if distanceToGoal+segment.Magnitude>=105 then
+            local at=previous+segment.Unit*(105-distanceToGoal)
+            goal=Vector3.new(at.X,source.Y,at.Z)
+
+            destination=future-1
+            break
+        end
+        distanceToGoal+=segment.Magnitude;previous=point
+    end
+    goal=goal or Vector3.new(route[destination].X,source.Y,route[destination].Y)
+    local direction=flat(goal-source)
+    if obstacle and obstacle:IsA("BasePart")then
+        local nodes={source,goal}
+        local radius=castSize().X/2+4
+
+        for _,reach in ipairs({24,48,96})do for i=0,7 do
+            local angle=i*math.pi/4
+            table.insert(nodes,source+Vector3.new(math.cos(angle)*reach,0,math.sin(angle)*reach))
+        end end
+        local parts={obstacle};local neighbours={}
+
+        local nearby=OverlapParams.new()
+        nearby.FilterType=Enum.RaycastFilterType.Exclude
+        nearby.FilterDescendantsInstances={session.model,player.Character,workspace.CurrentCamera}
+        nearby.RespectCanCollide=true
+        for _,part in ipairs(workspace:GetPartBoundsInRadius(source,160,nearby))do
+            if part~=obstacle and part.CanCollide and part.Size.Y>=.18 and part.Size.Y<5
+                and part.Material~=Enum.Material.Asphalt and math.max(part.Size.X,part.Size.Z)<350 then
+                table.insert(neighbours,part)
+            end
+        end
+        table.sort(neighbours,function(a,b)return(a.Position-source).Magnitude<(b.Position-source).Magnitude end)
+        for i=1,math.min(19,#neighbours)do table.insert(parts,neighbours[i])end
+        for n,part in ipairs(parts)do
+            if n>20 then break end
+            for _,x in ipairs({-1,1})do for _,z in ipairs({-1,1})do
+                local point=part.CFrame:PointToWorldSpace(Vector3.new(x*(part.Size.X/2+radius),0,z*(part.Size.Z/2+radius)))
+                local at=Vector3.new(point.X,source.Y,point.Z)
+                if(at-source).Magnitude<=360 and(at-goal).Magnitude<=360 then table.insert(nodes,at)end
+            end end
+        end
+        if math.abs(source.X)<110 then
+            local lane=source.X<0 and-28 or 28
+            table.insert(nodes,Vector3.new(lane,source.Y,source.Z))
+            table.insert(nodes,Vector3.new(lane,source.Y,goal.Z))
+        end
+        local distance={[1]=0};local previous={};local closed={};local edges={}
+        for step=1,#nodes do
+            local best,value
+            for i,d in pairs(distance)do if not closed[i]and(not value or d<value)then best,value=i,d end end
+            if not best or best==2 then break end
+            closed[best]=true
+            for j,node in ipairs(nodes)do if not closed[j]and j~=best then
+                local key=math.min(best,j)..":"..math.max(best,j)
+                local clear=edges[key]
+                if clear==nil then clear=not routeCast(nodes[best],node);edges[key]=clear end
+                local cost=value+(node-nodes[best]).Magnitude
+                if clear and(not distance[j]or cost<distance[j])then distance[j]=cost;previous[j]=best end
+            end end
+        end
+        if distance[2]then
+            local result={};local at=2
+            while at do table.insert(result,1,Vector2.new(nodes[at].X,nodes[at].Z));at=previous[at]end
+            for future=destination+1,#route do table.insert(result,route[future])end
+            return result
+        end
+    end
+    if obstacle and obstacle:IsA("BasePart")and direction.Magnitude>1 then
+        local forward=direction.Unit;local side=Vector3.new(-forward.Z,0,forward.X)
+        local halfForward,halfSide=0,0
+        for _,x in ipairs({-1,1})do for _,y in ipairs({-1,1})do for _,z in ipairs({-1,1})do
+            local corner=obstacle.CFrame:PointToWorldSpace(obstacle.Size*Vector3.new(x,y,z)/2)-obstacle.Position
+            halfForward=math.max(halfForward,math.abs(corner:Dot(forward)))
+            halfSide=math.max(halfSide,math.abs(corner:Dot(side)))
+        end end end
+        if halfSide<150 and halfForward<220 then
+            local choices={}
+            for _,sign in ipairs({-1,1})do
+                local centre=Vector3.new(obstacle.Position.X,source.Y,obstacle.Position.Z)
+                local offset=side*sign*(halfSide+castSize().X/2+5)
+                local a=centre-forward*(halfForward+8)+offset
+                local b=centre+forward*(halfForward+12)+offset
+                if not routeCast(source,a)and not routeCast(a,b)and not routeCast(b,goal)then
+                    table.insert(choices,{source,a,b,goal})
+                end
+            end
+            if#choices>0 then
+                table.sort(choices,function(a,b)return(a[2]-source).Magnitude<(b[2]-source).Magnitude end)
+                local result={}
+                for _,point in ipairs(choices[1])do table.insert(result,Vector2.new(point.X,point.Z))end
+                for future=destination+1,#route do table.insert(result,route[future])end
+                return result
+            end
+        end
+    end
+
+    local spacing=sessionKind=="Car"and 10 or 8
+    local heap={};local seen={};local expanded=0
+    local function push(node)
+        table.insert(heap,node);local at=#heap
+        while at>1 do local parent=math.floor(at/2);if heap[parent].f<=node.f then break end;heap[at]=heap[parent];at=parent end
+        heap[at]=node
+    end
+    local function pop()
+        local result=heap[1];local last=table.remove(heap)
+        if#heap>0 then
+            local at=1
+            while at*2<=#heap do
+                local child=at*2;if child<#heap and heap[child+1].f<heap[child].f then child+=1 end
+                if heap[child].f>=last.f then break end
+                heap[at]=heap[child];at=child
+            end
+            heap[at]=last
+        end
+        return result
+    end
+    local root={x=0,z=0,point=source,g=0,f=(goal-source).Magnitude}
+    push(root);seen["0:0"]=root
+    local found
+    while#heap>0 and expanded<3000 do
+        local node=pop()
+        if not node.closed then
+            node.closed=true;expanded+=1
+            if(node.point-goal).Magnitude<spacing*1.6 and not routeCast(node.point,goal)then found=node;break end
+            for dx=-1,1 do for dz=-1,1 do if dx~=0 or dz~=0 then
+                local x,z=node.x+dx,node.z+dz
+                if math.abs(x)<=28 and math.abs(z)<=28 then
+                    local key=x..":"..z;local old=seen[key]
+                    local point=source+Vector3.new(x*spacing,0,z*spacing)
+                    local cost=node.g+spacing*math.sqrt(dx*dx+dz*dz)
+                    if(not old or cost<old.g)and not routeCast(node.point,point)then
+                        local nextNode={x=x,z=z,point=point,g=cost,f=cost+(point-goal).Magnitude,parent=node}
+                        seen[key]=nextNode;push(nextNode)
+                    end
+                end
+            end end end
+            if expanded%100==0 then check();task.wait()end
+        end
+    end
+    if found then
+        local raw={goal};local node=found
+        while node do table.insert(raw,1,node.point);node=node.parent end
+        local result={Vector2.new(source.X,source.Z)};local at=1
+        while at<#raw do
+            local far=at+1
+            for future=at+2,#raw do if routeCast(raw[at],raw[future])then break else far=future end end
+            table.insert(result,Vector2.new(raw[far].X,raw[far].Z));at=far
+        end
+        for future=destination+1,#route do table.insert(result,route[future])end
+        return result
+    end
+    local path=PathfindingService:CreatePath({AgentRadius=sessionKind=="Car"and 4.5 or 2.5,AgentHeight=5,AgentCanJump=false,WaypointSpacing=10})
+    local ok=pcall(path.ComputeAsync,path,source,goal)
+    if not ok or path.Status~=Enum.PathStatus.Success then return nil end
+    local result={Vector2.new(source.X,source.Z)};local previous=source
+    for _,point in ipairs(path:GetWaypoints())do
+        if point.Action==Enum.PathWaypointAction.Jump then return nil end
+        local at=Vector3.new(point.Position.X,source.Y,point.Position.Z)
+        if routeCast(previous,at)then return nil end
+        local nextPoint=Vector2.new(at.X,at.Z)
+        if(nextPoint-result[#result]).Magnitude>2 then table.insert(result,nextPoint)end
+        previous=at
+    end
+    if#result<3 then return nil end
+    for future=destination+1,#route do table.insert(result,route[future])end
+    return result
+end
+
+local function smoothRoute(raw)
+    local points = {raw[1]}
+    local function append(point)
+        if (points[#points] - point).Magnitude > .1 then table.insert(points, point) end
+    end
+    for i = 2, #raw - 1 do
+        local a, b, c = raw[i - 1], raw[i], raw[i + 1]
+        local incoming, outgoing = b - a, c - b
+        if incoming.Magnitude > .1 and outgoing.Magnitude > .1 then
+            local angle = math.acos(math.clamp(incoming.Unit:Dot(outgoing.Unit), -1, 1))
+            if angle > .035 and angle < 2.8 then
+
+                local share = angle < .5 and .5 or .3
+                local trim = math.min(incoming.Magnitude * share, outgoing.Magnitude * share,
+                    35, 8 / math.max(.15, math.sin(angle / 2)))
+                local entry, exit = b - incoming.Unit * trim, b + outgoing.Unit * trim
+                append(entry)
+                local steps = math.max(3, math.ceil(trim * 2 / 5))
+                for step = 1, steps do
+                    local t = step / steps
+                    append(entry * (1 - t)^2 + b * (2 * (1 - t) * t) + exit * t^2)
+                end
+            else append(b) end
+        else append(b) end
+    end
+    append(raw[#raw])
+
+    for i=2,#points do
+        local a,b=points[i-1],points[i]
+        local y=session.chassis.Position.Y
+        if routeCast(Vector3.new(a.X,y,a.Y),Vector3.new(b.X,y,b.Y))then return raw end
+    end
+    return points
+end
+
+local function roadsideTarget(target,recovery)
+    local best,bestScore
+    for _,radius in ipairs({0,8,16,24,29,30})do
+        local samples=radius==0 and 1 or 32
+        for i=1,samples do
+            local angle=(i-1)*math.pi*2/samples
+            local point=target+Vector3.new(math.cos(angle)*radius,0,math.sin(angle)*radius)
+            local hit=workspace:Raycast(point+Vector3.new(0,10,0),Vector3.new(0,-30,0),castParams)
+            if hit and(hit.Material==Enum.Material.Asphalt or recovery and math.abs(hit.Position.Y-target.Y)<2)
+                and hit.Normal.Y>.9 then
+                local candidate=Vector3.new(point.X,hit.Position.Y,point.Z)
+                local clear=true
+
+                for _,offset in ipairs({Vector3.new(1.8,0,0),Vector3.new(-1.8,0,0),Vector3.new(0,0,1.8),Vector3.new(0,0,-1.8)})do
+                    local edge=workspace:Raycast(candidate+offset+Vector3.new(0,4,0),Vector3.new(0,-8,0),castParams)
+                    if not edge or(not recovery and edge.Material~=Enum.Material.Asphalt)or math.abs(edge.Position.Y-hit.Position.Y)>.25 then clear=false;break end
+                end
+                if recovery and routeCast(session.chassis.Position,candidate+Vector3.new(0,1,0))then clear=false end
+                local distance=(flat(candidate)-flat(session.chassis.Position)).Magnitude
+                local score=recovery and distance or radius+distance*.002
+                if clear and(not bestScore or score<bestScore)then best,bestScore=candidate,score end
+            end
+        end
+    end
+    return best or target
+end
+
+local function routePoint(model,arc)
+    arc=math.clamp(arc,0,model.Length)
+    local low,high=1,#model.Points-1
+    while low<high do
+        local middle=math.floor((low+high)/2)
+        if model.Arc[middle+1]<arc then low=middle+1 else high=middle end
+    end
+    local a,b=model.Points[low],model.Points[low+1]
+    local span=model.Arc[low+1]-model.Arc[low]
+    return a+(b-a)*(span>.001 and(arc-model.Arc[low])/span or 0),low
+end
+local function routeModel(points)
+    local filtered={}
+    for _,point in ipairs(points)do if#filtered==0 or(point-filtered[#filtered]).Magnitude>.1 then table.insert(filtered,point)end end
+    assert(#filtered>=2,"Route too short")
+    local model={Points=filtered,Arc={0},Progress=0,Cursor=1,TurnIndex=1,Turns={}}
+    for i=2,#filtered do model.Arc[i]=model.Arc[i-1]+(filtered[i]-filtered[i-1]).Magnitude end
+    model.Length=model.Arc[#filtered]
+    for i=2,#filtered-1 do
+        local arc=model.Arc[i]
+        local a=filtered[i]-routePoint(model,arc-22)
+        local b=routePoint(model,arc+22)-filtered[i]
+        if a.Magnitude>2 and b.Magnitude>2 then
+            local angle=math.acos(math.clamp(a.Unit:Dot(b.Unit),-1,1))
+            if angle>.06 then
+                local bendSpeed=angle>1.1 and 24 or angle>.65 and 32 or angle>.35 and 45
+                    or math.clamp(math.sqrt(Config.CurveAccel*(a.Magnitude+b.Magnitude)/(2*angle)),32,100)
+                local corner=model.Turns[#model.Turns]
+                if corner and arc-corner.Last<30 then
+                    corner.Last=arc;corner.Exit=math.min(model.Length,arc+18);corner.Angle=math.max(corner.Angle,angle)
+                else
+                    corner={Entry=math.max(0,arc-18),Exit=math.min(model.Length,arc+18),Last=arc,Angle=angle}
+                    table.insert(model.Turns,corner)
+                end
+                corner.Speed=math.min(corner.Speed or math.huge,bendSpeed)
+            end
+        end
+    end
+    return model
+end
+local function projectRoute(model,position,speed)
+    local best,bestScore,bestSegment,bestDistance
+    local maxArc=model.Progress+math.max(40,speed*.25)
+    for index=math.max(1,model.Cursor-1),math.min(#model.Points-1,model.Cursor+20)do
+        local a,b=model.Points[index],model.Points[index+1];local segment=b-a
+        local t=math.clamp((position-a):Dot(segment)/math.max(.001,segment:Dot(segment)),0,1)
+        local projected=a+segment*t;local arc=model.Arc[index]+segment.Magnitude*t
+        if arc>=model.Progress-4 and arc<=maxArc then
+            local distance=(position-projected).Magnitude
+            local score=distance*distance+math.max(0,arc-model.Progress)*.01
+            if not bestScore or score<bestScore then best,bestScore,bestSegment,bestDistance=arc,score,index,distance end
+        end
+    end
+    if best then model.Progress=math.max(model.Progress,best);model.Cursor=bestSegment end
+    return bestDistance or(position-routePoint(model,model.Progress)).Magnitude
+end
+local function nextTurn(model)
+    while model.TurnIndex<=#model.Turns and model.Progress>model.Turns[model.TurnIndex].Exit+4 do model.TurnIndex+=1 end
+    return model.Turns[model.TurnIndex]
+end
+local function rideSpeedStep(speed,target,acceleration,dt)
+    local desired=math.clamp((target-speed)*8,-(Config.GrabBrakeAccel or 180),Config.GrabAcceleration or 120)
+    local change=(Config.GrabJerk or 1000)*dt
+    acceleration+=(math.clamp(desired-acceleration,-change,change))
+    local nextSpeed=speed+acceleration*dt
+    if(target-speed)*(target-nextSpeed)<=0 then return target,0 end
+    return math.max(0,nextSpeed),acceleration
+end
+local function brakeDistance(speed,target,car)
+    if jobId=="Grab"and Config.GrabRouteV2 then
+        local velocity=math.max(0,speed);local distance=0
+        local acceleration=math.max(0,Worker.TweenAcceleration or 0)
+        for _=1,1000 do
+            if velocity<=target+.05 then break end
+            local nextSpeed,nextAccel=rideSpeedStep(velocity,target,acceleration,.02)
+            distance+=(velocity+nextSpeed)*.01;velocity=nextSpeed;acceleration=nextAccel
+        end
+        return distance*1.08+speed*.45+8
+    end
+    local velocity=math.max(0,speed);local distance=0
+    for _=1,200 do
+        if velocity<=target then break end
+        local nextSpeed=car and math.max(target,velocity-(Config.ComfortDecel or 38)*.05)or math.max(target,BikeShared.brake(velocity,.05,1))
+        distance+=(velocity+nextSpeed)*.025;velocity=nextSpeed
+    end
+    return distance*1.08+speed*.45+8
+end
+local function turnLimit(model,speed,car)
+    local corner=nextTurn(model)
+    if model.LatchedTurn and model.Progress>model.LatchedTurn.Exit+4 then model.LatchedTurn=nil end
+    if corner and not model.LatchedTurn then
+        local ahead=corner.Entry-model.Progress
+        if ahead<=brakeDistance(speed,corner.Speed,car)then model.LatchedTurn=corner end
+    end
+
+    for index=model.TurnIndex,math.min(#model.Turns,model.TurnIndex+8)do
+        local future=model.Turns[index]
+        local distance=future.Entry-model.Progress
+        local lead=brakeDistance(speed,future.Speed,car)
+        if distance<=lead and(not model.LatchedTurn or future.Speed<model.LatchedTurn.Speed)then model.LatchedTurn=future end
+    end
+    return model.LatchedTurn and model.LatchedTurn.Speed or nil,corner and math.max(0,corner.Entry-model.Progress)or nil
+end
+
+local function driveThrottle(control,speed,target,now)
+    local stop=target<.5
+    local trigger=stop and .5 or target+6
+    if not control.Held and speed>trigger and(now>=(control.RearmAt or 0)or stop or speed>target+14)then
+        control.Held=true;control.Release=stop and .35 or math.max(.5,target-3)
+        control.Episodes=(control.Episodes or 0)+1
+    end
+    if control.Held then
+        control.Release=stop and .35 or math.max(.5,target-3)
+        if speed>control.Release then return -1,true end
+        control.Held=false;control.RearmAt=now+.8
+    end
+    if stop then return 0,false end
+    return math.clamp((target-speed)/12,0,1),false
+end
+
+local function buildingClear(from,to)
+    local delta=flat(to-from)
+    if delta.Magnitude<1 then return true end
+    local excludedParts={player.Character,workspace.CurrentCamera}
+    if session then table.insert(excludedParts,session.model)end
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.RespectCanCollide=true
+    for _=1,32 do
+        params.FilterDescendantsInstances=excludedParts
+        local hit=workspace:Blockcast(CFrame.new(from+Vector3.new(0,2,0)),Vector3.new(4,3,4),delta,params)
+        if not hit then return true end
+        local part=hit.Instance
+        if not part:IsA("BasePart")then return hit.Normal.Y>.7 end
+        local cf,size=part.CFrame,part.Size
+        local height=math.abs(cf.RightVector.Y)*size.X+math.abs(cf.UpVector.Y)*size.Y+math.abs(cf.LookVector.Y)*size.Z
+        if height>10 and hit.Normal.Y<.7 then Worker.LastTweenRejected="Path blocked";return false end
+        table.insert(excludedParts,part)
+    end
+    Worker.LastTweenRejected="Path scan incomplete";return false
+end
+
+local function tweenVehiclePast(hit,direction,arrival)
+    if Worker.VehicleTweenDisabled and Config.RoadWorkArrival and Worker.VehicleTweenRetryAt and os.clock()>=Worker.VehicleTweenRetryAt then
+        Worker.VehicleTweenDisabled=nil;Worker.VehicleTweenRetryAt=nil
+    end
+    if Worker.VehicleTweenDisabled or not session then return false end
+    if not owner:CanVehicleTween(session.model)then Worker.LastTweenRejected="Not driving";return false end
+    local obstacle=hit and hit.Instance
+    if not arrival and(not obstacle or not obstacle:IsA("BasePart"))then return false end
+    direction=flat(arrival and(arrival-session.chassis.Position)or direction)
+    if direction.Magnitude<.1 then return false end;direction=direction.Unit
+    local distance
+    if arrival then distance=flat(arrival-session.chassis.Position).Magnitude
+    else
+        local cf,size=obstacle.CFrame,obstacle.Size
+        local height=math.abs(cf.RightVector.Y)*size.X+math.abs(cf.UpVector.Y)*size.Y+math.abs(cf.LookVector.Y)*size.Z
+        if height>10 then Worker.LastTweenRejected="Tall obstacle blocks the path";return false end
+        local origin=cf:PointToObjectSpace(session.chassis.Position)
+        local ray=cf:VectorToObjectSpace(direction)
+        local enter,leave=-math.huge,math.huge
+        for _,axis in ipairs({"X","Y","Z"})do
+
+            local half=size[axis]*.5+2
+            if math.abs(ray[axis])<.0001 then
+                if math.abs(origin[axis])>half then return false end
+            else
+                local a,b=(-half-origin[axis])/ray[axis],(half-origin[axis])/ray[axis]
+                enter=math.max(enter,math.min(a,b));leave=math.min(leave,math.max(a,b))
+            end
+        end
+        if leave<math.max(enter,0)then return false end
+        distance=leave+9
+    end
+    if distance<1 or distance>(arrival and 300 or 120)then return false end
+    local finish=session.chassis.Position+direction*distance
+    if Worker.IsDestinationApproach()and Worker.LegTarget
+        and flat(finish-Worker.LegTarget).Magnitude>flat(session.chassis.Position-Worker.LegTarget).Magnitude+3 then
+        Worker.LastTweenRejected="Already in destination alley";return false
+    end
+    if not Worker.DepartingRoad and not buildingClear(session.chassis.Position,finish)then return false end
+    if Config.KeepShopLane and not owner:CanShopVehicleTween(session.chassis.Position,finish,session.chassis.CFrame.LookVector,arrival~=nil)then Worker.LastTweenRejected="Target crosses lanes or reverses direction";return false end
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include;params.FilterDescendantsInstances={workspace.Map,workspace.Terrain};params.RespectCanCollide=true
+    local floor=workspace:Raycast(finish+Vector3.new(0,8,0),Vector3.new(0,-24,0),params)
+    local beforeFloor=workspace:Raycast(session.chassis.Position+Vector3.new(0,3,0),Vector3.new(0,-14,0),params)
+    if Worker.DepartingRoad and Config.RoadWorkArrival then
+
+        floor={Position=session.chassis.Position,Normal=Vector3.yAxis}
+        beforeFloor=floor
+    end
+    if not floor or floor.Normal.Y<.7 then Worker.LastTweenRejected="Destination surface unavailable";return false end
+    if not beforeFloor or math.abs(floor.Position.Y-beforeFloor.Position.Y)>4 then Worker.LastTweenRejected="Uneven ground";return false end
+    brake();check()
+    if math.abs(session.speed or 0)>1 then return false end
+    local remainingDelta=flat(finish-session.chassis.Position)
+    if remainingDelta:Dot(direction)<-2 then return false end
+    distance=remainingDelta.Magnitude
+    if distance<1 then return true end
+    direction=remainingDelta.Unit
+    if not Worker.DepartingRoad and not buildingClear(session.chassis.Position,finish)then return false end
+    if not(Worker.DepartingRoad and Config.RoadWorkArrival)then beforeFloor=workspace:Raycast(session.chassis.Position+Vector3.new(0,3,0),Vector3.new(0,-14,0),params)or beforeFloor end
+    local vehicle=session.model;local character=player.Character;local original={}
+    local pivot=vehicle:GetPivot();local relative= pivot:ToObjectSpace(character:GetPivot())
+    local delta=direction*distance+Vector3.new(0,floor.Position.Y-beforeFloor.Position.Y,0)
+    local destination=pivot+delta
+    local bounds,extents=vehicle:GetBoundingBox();local bottom=bounds.Position.Y-extents.Y/2-pivot.Position.Y
+    local value=Instance.new("CFrameValue");value.Value=pivot
+    local support=Instance.new("Part");support.Name="MahanakhonVehicleFloat";support.Size=Vector3.new(12,.5,14);support.Transparency=1;support.Anchored=true;support.CanTouch=false;support.CanQuery=false;support.Parent=workspace
+    local tween;local connection;local cleaned=false
+    local function cleanup()
+        if cleaned then return end;cleaned=true
+        if tween then tween:Cancel()end;if connection then connection:Disconnect()end
+        for part,collision in pairs(original)do if part.Parent then part.CanCollide=collision end end
+        support:Destroy();value:Destroy()
+        if Worker.VehicleTweenCleanup==cleanup then Worker.VehicleTweenCleanup=nil end
+    end
+    Worker.VehicleTweenCleanup=cleanup
+    Worker.VehicleTweenAttempts=(Worker.VehicleTweenAttempts or 0)+1
+    local ok,message=xpcall(function()
+        connection=RunService.Stepped:Connect(function()
+            if not vehicle.Parent then return end
+            for _,container in ipairs({vehicle,character})do for _,part in ipairs(container:GetDescendants())do if part:IsA("BasePart")then
+                if original[part]==nil then original[part]=part.CanCollide end;part.CanCollide=false
+                part.AssemblyLinearVelocity=Vector3.zero;part.AssemblyAngularVelocity=Vector3.zero
+            end end end
+            session.speed=0;vehicle:PivotTo(value.Value);character:PivotTo(value.Value*relative)
+            support.CFrame=CFrame.new(value.Value.Position+Vector3.new(0,bottom-.3,0))
+        end)
+        local speed=arrival and(Config.ArrivalTweenSpeed or 35)or 80
+        local duration=arrival and math.max(.6,distance/speed)or distance/speed
+        tween=game:GetService("TweenService"):Create(value,TweenInfo.new(duration,arrival and Enum.EasingStyle.Quad or Enum.EasingStyle.Linear,Enum.EasingDirection.Out),{Value=destination})
+        tween:Play()
+        while tween.PlaybackState==Enum.PlaybackState.Playing do check();assert(owner:CanVehicleTween(vehicle),"Tween stopped: vehicle not controlled");task.wait(.04)end
+        check();assert((vehicle:GetPivot().Position-destination.Position).Magnitude<10,"Vehicle Tween corrected")
+    end,tostring)
+    cleanup()
+    if not ok then Worker.VehicleTweenDisabled=true;Worker.VehicleTweenFailure=tostring(message);return false end
+    task.wait(.5);check()
+    if(vehicle:GetPivot().Position-destination.Position).Magnitude>12 then Worker.VehicleTweenDisabled=true;Worker.VehicleTweenRetryAt=Config.RoadWorkArrival and(os.clock()+8)or nil;Worker.VehicleTweenFailure="Vehicle moved back";return false end
+    Worker.VehicleTweens=(Worker.VehicleTweens or 0)+1;Worker.LastTweenObstacle=arrival and"shop-arrival"or obstacle:GetFullName();if arrival then Worker.ArrivalTween=true end
+    return true
+end
+function Worker.PlanAlleyExit(target,expected)
+    Worker.AlleyExit=nil
+    if Config.FareAlleyRouting and Worker.AlleyPhase=="destination"then return end
+    if not expected or not session or math.abs(session.chassis.Position.X)<=85 then return end
+    local source=session.chassis.Position
+    local mouth=alleyMouth(source)
+    if not mouth then return end
+    local destinationMouth=alleyMouth(target)
+    if destinationMouth and source.X*target.X>0 and math.abs(destinationMouth.Z-mouth.Z)<20 then return end
+    Worker.AlleyExit={Mouth=mouth,Side=source.X<0 and-1 or 1}
+end
+function Worker.TryExitAlley(target)
+    local plan=Worker.AlleyExit
+    if not plan or plan.Done or not session or(Config.FareAlleyRouting and Worker.AlleyPhase=="destination")then return false end
+    local position=session.chassis.Position
+    local destinationMouth=alleyMouth(target)
+    if jobId=="Grab"and destinationMouth and position.X*target.X>0 and math.abs(destinationMouth.Z-plan.Mouth.Z)<20 then
+        plan.Done=true;return false
+    end
+    if math.abs(position.X)>(jobId=="Grab"and 328 or 170)or math.abs(position.Z-plan.Mouth.Z)>25 then return false end
+    local side=jobId=="Grab"and plan.Side or(target.X<0 and-1 or 1)
+    local destination=Vector3.new(side*Config.LaneOffset,position.Y,plan.Mouth.Z)
+    Worker.EmergencyBrake=true;status(jobId=="Grab"and"Moving to road"or"Braking before alley exit")
+    local previousSpeed=Config.ArrivalTweenSpeed
+    if jobId=="Grab"then Config.ArrivalTweenSpeed=35 end
+    local ok,result=pcall(tweenVehiclePast,nil,destination-position,destination)
+    Config.ArrivalTweenSpeed=previousSpeed
+    Worker.EmergencyBrake=false
+    if ok and result then
+        local direction=math.abs(target.Z-plan.Mouth.Z)>25 and Vector3.new(0,0,target.Z-plan.Mouth.Z)or target-session.chassis.Position
+        Worker.FaceDirection(direction)
+        plan.Done=true;Worker.AlleyExitTweens=(Worker.AlleyExitTweens or 0)+1
+        status("Alley exited; continuing")
+        return true
+    end
+    return false
+end
+
+function Worker.TryEnterAlley(target,expected)
+    if Config.FareAlleyRouting and Worker.AlleyPhase=="destination"then return false end
+
+    if jobId=="Grab"and(expected=="ToHome"or Worker.AlleyPhase=="destination")then return false end
+    if not expected or not session or math.abs(session.chassis.Position.X)>=85 then return false end
+    local mouth=alleyMouth(target)
+    if not mouth then return false end
+    local key=expected..":"..tostring(target.X)..":"..tostring(target.Z)
+    if Worker.AlleyEntered==key then return false end
+    local position=session.chassis.Position
+    local approach=math.clamp(brakeDistance(math.abs(session.speed or 0),0,sessionKind=="Car")+8,24,Config.FareAlleyApproach or 180)
+    if math.abs(position.Z-mouth.Z)>approach then return false end
+    if jobId=="Grab"then
+        local side=target.X<0 and-1 or 1
+        local destination=Vector3.new(side*math.min(110,math.abs(target.X)),position.Y,mouth.Z)
+        status("Entering pickup alley")
+
+        if not tweenVehiclePast(nil,destination-position,destination)then return false end
+        Worker.AlleyEntered=key;Worker.AlleyPhase="destination";Worker.AlleyExit=nil
+        Worker.AlleyEntryTweens=(Worker.AlleyEntryTweens or 0)+1
+        return true
+    end
+    status("Braking before alley entrance")
+    brake();check()
+
+    local front=Vector3.new(position.X<0 and-Config.LaneOffset or Config.LaneOffset,session.chassis.Position.Y,mouth.Z)
+    if flat(front-session.chassis.Position).Magnitude>3 and not tweenVehiclePast(nil,front-session.chassis.Position,front)then return false end
+    local side=target.X<0 and-1 or 1
+    if not Worker.FaceDirection(Vector3.new(side,0,0))then return false end
+    local destination=Vector3.new(side*math.min(110,math.abs(target.X)),session.chassis.Position.Y,mouth.Z)
+    if not tweenVehiclePast(nil,destination-session.chassis.Position,destination)then return false end
+    Worker.FaceDirection(Vector3.new(side,0,0))
+    Worker.AlleyEntered=key;Worker.AlleyPhase="destination"
+
+    Worker.AlleyExit=nil
+    Worker.AlleyEntryTweens=(Worker.AlleyEntryTweens or 0)+1
+    status("Alley entered; approaching destination")
+    return true
+end
+
+function Worker.TryDirectArrival(target,expected)
+    if not expected or not session or flat(target-session.chassis.Position).Magnitude>(Config.FareArrivalRadius or 45)then return false end
+    local distance=flat(target-session.chassis.Position).Magnitude
+    local speed=math.abs(session.speed or 0)
+    if speed*speed/(2*Config.ComfortDecel)+8>distance then return false end
+    local mouth=alleyMouth(target)
+    if mouth and math.abs(session.chassis.Position.X)<85 then return false end
+    local destination=Config.RoadWorkArrival and target or roadsideTarget(target)
+    local direction=destination-session.chassis.Position
+    if flat(direction).Magnitude<2 then return false end
+    if tweenVehiclePast(nil,direction,destination)then
+        Worker.FaceDirection(direction)
+        brake();Worker.DirectArrival=true
+        return true
+    end
+    return false
+end
+
+function Worker.PassengerTurnPlan(corner,progress,speed,car,expected)
+    if jobId~="Grab"or(expected~="ToHome"and expected~="ToShop")or not corner or corner.Angle<math.rad(5)then return nil end
+    local angle=corner.Angle
+    local loaded=expected=="ToHome"
+    local target=math.min(corner.Speed or 60,angle>=math.rad(100)and(loaded and 16 or 22)
+        or angle>=math.rad(65)and(loaded and 20 or 28)
+        or angle>=math.rad(35)and(loaded and 24 or 35)
+        or angle>=math.rad(15)and(loaded and 35 or 45)or(loaded and 50 or 75))
+    local physical=math.max(0,(brakeDistance(speed,target,car)-speed*.45-8)/1.08)
+    local lead=physical+math.max(4,speed*.16)
+    return {Speed=target,Distance=corner.Entry-progress,Lead=lead,Ready=speed<=target+1,Angle=angle}
+end
+function Worker.PassengerTurnCap(model,speed,car,expected)
+    if jobId~="Grab"or(expected~="ToHome"and expected~="ToShop")then return nil end
+    local best
+    local horizon=brakeDistance(speed,16,car)+20
+    for index=model.TurnIndex,#model.Turns do
+        local corner=model.Turns[index]
+        if corner.Entry-model.Progress>horizon then break end
+        local plan=Worker.PassengerTurnPlan(corner,model.Progress,speed,car,expected)
+        if plan and plan.Distance<=plan.Lead and corner.Exit>model.Progress
+            and(not best or plan.Speed<best.Speed)then best=plan end
+    end
+    return best
+end
+function Worker.TweenFareRoute(model,fromArc,toArc,final)
+    check();assert(owner:CanVehicleTween(session.model),"Not driving")
+    local vehicle,character=session.model,player.Character
+    local chassis=session.chassis;local start=chassis.CFrame
+    local vehicleOffset=start:ToObjectSpace(vehicle:GetPivot())
+    local riderOffset=start:ToObjectSpace(character:GetPivot())
+    local floorY=groundY(start.Position);local rideHeight=start.Position.Y-floorY
+    local original={};local previousBrake=session.braking
+    local passenger=Config.FareAlleyRouting and jobId=="Grab"and player:GetAttribute("DeliveryState")=="ToHome"
+    local resumeSpeed=final and 0 or math.min(math.abs(session.speed or 0),speedLimit())
+    local function cleanup()
+        for part,collide in pairs(original)do if part.Parent then part.CanCollide=collide end end
+        session.braking=previousBrake
+        if Worker.VehicleTweenCleanup==cleanup then Worker.VehicleTweenCleanup=nil end
+    end
+    Worker.VehicleTweenCleanup=cleanup
+    stopInputs();session.braking=true
+    local length=math.max(0,toArc-fromArc)
+    local duration=math.max(.25,length/(final and(Config.ArrivalTweenSpeed or 65)or(Config.FareTurnTweenSpeed or 90)))
+    local began=os.clock();local rotatedAt=began;local lastCF=start
+    local ok,message=xpcall(function()
+        while true do
+            check();assert(vehicle.Parent and character.Parent,"Vehicle or character missing")
+            local alpha=math.clamp((os.clock()-began)/duration,0,1)
+            local arc=fromArc+length*alpha
+            local point=routePoint(model,arc);local ahead=routePoint(model,math.min(model.Length,arc+4))
+            local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include
+            params.FilterDescendantsInstances={workspace.Map,workspace.Terrain};params.RespectCanCollide=true
+            local floor=workspace:Raycast(Vector3.new(point.X,floorY+8,point.Y),Vector3.new(0,-36,0),params)
+            if floor and floor.Normal.Y>.6 then floorY=floor.Position.Y end
+            local position=Vector3.new(point.X,floorY+rideHeight,point.Y)
+            local direction=Vector3.new(ahead.X-point.X,0,ahead.Y-point.Y)
+            if direction.Magnitude<.1 then
+                local behind=routePoint(model,math.max(0,arc-4))
+                direction=Vector3.new(point.X-behind.X,0,point.Y-behind.Y)
+                if direction.Magnitude<.1 then direction=lastCF.LookVector end
+            end
+            local heading=CFrame.lookAt(position,position+direction.Unit)
+            local now=os.clock();local yawError=math.acos(math.clamp(lastCF.LookVector:Dot(heading.LookVector),-1,1))
+            local blend=passenger and math.min(1,(now-rotatedAt)*.8/math.max(.001,yawError))
+                or(alpha>=1 and 1 or math.clamp((now-rotatedAt)*10,0,1))
+            local rotation=lastCF.Rotation:Lerp(heading.Rotation,blend);rotatedAt=now
+            lastCF=CFrame.new(position)*rotation
+            for _,container in ipairs({vehicle,character})do for _,part in ipairs(container:GetDescendants())do
+                if part:IsA("BasePart")then
+                    if original[part]==nil then original[part]=part.CanCollide end
+                    part.CanCollide=false;part.AssemblyLinearVelocity=Vector3.zero;part.AssemblyAngularVelocity=Vector3.zero
+                end
+            end end
+            session.speed=0;session.heading=math.atan2(-lastCF.LookVector.X,-lastCF.LookVector.Z)
+            session.travel=session.heading;session.steerIn=0
+            vehicle:PivotTo(lastCF*vehicleOffset);character:PivotTo(lastCF*riderOffset)
+            if alpha>=1 and(not passenger or yawError<.025)and(not final or player:GetAttribute("DeliveryArrived")==true or os.clock()-began>=duration+2.2)then break end
+            RunService.Heartbeat:Wait()
+        end
+    end,tostring)
+    cleanup();assert(ok,message)
+    session.speed=resumeSpeed
+    chassis.AssemblyLinearVelocity=lastCF.LookVector*resumeSpeed
+    Worker.FareTweens=(Worker.FareTweens or 0)+1
+    if final then Worker.ArrivalTweens=(Worker.ArrivalTweens or 0)+1 end
+    local releasedAt=os.clock();task.wait(.12);check()
+    local predicted=lastCF.Position+lastCF.LookVector*resumeSpeed*(os.clock()-releasedAt)
+    local errorDistance=flat(chassis.Position-predicted).Magnitude
+    Worker.LastTweenCheck={Error=errorDistance,ResumeSpeed=resumeSpeed,Final=final,Actual=tostring(chassis.Position),Expected=tostring(predicted)}
+    assert(errorDistance<(final and 14 or math.max(45,resumeSpeed*.5)),"Position error after tween: "..math.floor(errorDistance).." studs")
+    return true
+end
+
+function Worker.GrabRoadKind(a,b)
+    if not Worker.GrabLaneEdges then
+        local roads=require(RS.MapRoads);local edges={}
+        for i=1,#roads.EDGES,3 do
+            local first,last,kind=roads.EDGES[i],roads.EDGES[i+1],roads.KINDS[roads.EDGES[i+2]]
+            if kind.gps then
+                table.insert(edges,{A=Vector2.new(roads.NODES[first*2-1],roads.NODES[first*2]),B=Vector2.new(roads.NODES[last*2-1],roads.NODES[last*2]),Kind=kind})
+            end
+        end
+        Worker.GrabLaneEdges=edges
+    end
+    local delta=b-a;if delta.Magnitude<.1 then return nil end
+    local midpoint=(a+b)*.5;local best,bestDistance
+    for _,edge in ipairs(Worker.GrabLaneEdges)do
+        local direction=edge.B-edge.A
+        if direction.Magnitude>.1 and math.abs(direction.Unit:Dot(delta.Unit))>.97 then
+            local t=math.clamp((midpoint-edge.A):Dot(direction)/direction:Dot(direction),0,1)
+            local distance=(midpoint-(edge.A+direction*t)).Magnitude
+            if not bestDistance or distance<bestDistance then best,bestDistance=edge.Kind,distance end
+        end
+    end
+    return bestDistance and bestDistance<(best and best.half or 12)+3 and best or nil
+end
+function Worker.GrabLaneRoute(raw)
+    if #raw<3 then return raw end
+    local clean={raw[1]}
+    for i=2,#raw-1 do
+        if i==2 or(raw[i]-clean[#clean]).Magnitude>.5 then table.insert(clean,raw[i])end
+    end
+    table.insert(clean,raw[#raw])
+    if #clean<3 then return clean end
+    local starts,finishes={},{}
+
+    for i=2,#clean-2 do
+        local a,b=clean[i],clean[i+1];local delta=b-a
+        if delta.Magnitude>.1 then
+            local kind=Worker.GrabRoadKind(a,b)
+            local half=kind and kind.half or 12
+            local offset=kind and kind.id=="main"and 28 or math.clamp(half*.5,2,16)
+            local left=Vector2.new(delta.Unit.Y,-delta.Unit.X)
+            starts[i]=a+left*offset;finishes[i]=b+left*offset
+        end
+    end
+    local points={clean[1]}
+    local function add(point)if(points[#points]-point).Magnitude>.5 then table.insert(points,point)end end
+    for i=2,#clean-1 do
+        local incoming=finishes[i-1];local outgoing=starts[i]
+        if incoming and outgoing then
+            local before=clean[i]-clean[i-1];local after=clean[i+1]-clean[i]
+            local cross=before.X*after.Y-before.Y*after.X
+            if math.abs(cross)>.01 and before.Unit:Dot(after.Unit)>-.9 then
+                local diff=outgoing-incoming
+                local t=(diff.X*after.Y-diff.Y*after.X)/cross
+                local intersection=incoming+before*t
+                if(intersection-clean[i]).Magnitude<45 then add(intersection)else add(incoming);add(outgoing)end
+            else add((incoming+outgoing)*.5)end
+        else add(incoming or outgoing or clean[i])end
+    end
+    add(clean[#clean])
+    return points
+end
+
+function Worker.GrabVillageExitRoute(points)
+    if jobId~="Grab"or not Config.GrabRouteV2 then return points end
+    local crossing=false
+    for i=1,#points-1 do local a,b=points[i],points[i+1]
+        if a.X>154 and b.X<154 and math.abs(a.Y-2532)<22 and math.abs(b.Y-2532)<22 then crossing=true;break end
+    end
+    if not crossing then return points end
+    local result={points[1]}
+    local function add(p)if(result[#result]-p).Magnitude>.1 then table.insert(result,p)end end
+    for i=1,#points-1 do
+        local a,b=points[i],points[i+1]
+        local relevant=a.X>b.X and a.X>=128 and b.X<=210 and math.abs(a.Y-2532)<22 and math.abs(b.Y-2532)<22
+        if relevant then
+            local entry=math.clamp(a.X,128,210);local exit=math.clamp(b.X,128,210)
+            add(Vector2.new(entry,2532));add(Vector2.new(exit,2532))
+            if b.X<128 or i+1==#points then add(b)end
+        else add(b)end
+    end
+    Worker.VillageExitRoute=true
+    return result
+end
+function Worker.GrabRoutePoints(target)
+    local source=session.chassis.Position
+    local raw=assert(Graph.route(source,target),"GPS route unavailable")
+    return Worker.GrabVillageExitRoute(Worker.GrabLaneRoute(raw))
+end
+function Worker.GrabRideHeight()
+    if Worker.TweenRideVehicle==session.model and Worker.TweenRideHeight then return Worker.TweenRideHeight end
+    local chassis=session.chassis;local height
+    for _,ground in pairs({session.frontGround,session.rearGround})do
+        if ground and ground.Parent then
+            local contact=-chassis.CFrame:PointToObjectSpace(ground.WorldPosition).Y
+            height=math.max(height or 0,contact)
+        end
+    end
+    if not height then
+        height=math.max(tonumber(session.model:GetAttribute("FrontWheelRadius"))or 0,tonumber(session.model:GetAttribute("RearWheelRadius"))or 0,chassis.Size.Y*.5)
+    end
+    Worker.TweenRideVehicle=session.model
+    Worker.TweenRideHeight=math.clamp(height+.1,.5,6)
+    return Worker.TweenRideHeight
+end
+function Worker.GrabFloor(position,previousY)
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include
+    params.FilterDescendantsInstances={workspace.Map,workspace.Terrain};params.RespectCanCollide=true
+    local hit=workspace:Raycast(Vector3.new(position.X,previousY+5,position.Z),Vector3.new(0,-18,0),params)
+    if not hit or hit.Normal.Y<.65 or hit.Material==Enum.Material.Water or math.abs(hit.Position.Y-previousY)>4 then return nil end
+    return hit.Position.Y
+end
+function Worker.GrabSweep(from,to)
+    local delta=to-from
+    if delta.Magnitude<.05 then return true end
+    local ignored={player.Character,workspace.CurrentCamera,session.model}
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.RespectCanCollide=true
+    local width=sessionKind=="Car"and 7 or 3.5
+    for _=1,48 do
+        params.FilterDescendantsInstances=ignored
+        local hit=workspace:Blockcast(CFrame.new(from+Vector3.new(0,2,0)),Vector3.new(width,3.5,4),delta,params)
+        if not hit then return true end
+        local part=hit.Instance
+        if not part:IsA("BasePart")then return hit.Normal.Y>.65 end
+        local cf,size=part.CFrame,part.Size
+        local height=math.abs(cf.RightVector.Y)*size.X+math.abs(cf.UpVector.Y)*size.Y+math.abs(cf.LookVector.Y)*size.Z
+        local building=false;local roadStructure=false;local parent=part
+        while parent and parent~=workspace do
+            if parent.Parent==workspace.Map and(parent.Name=="Road"or parent.Name=="Network"or parent.Name=="Viaduct"or parent.Name=="Expressway"or parent.Name=="MemorialBridge"or parent.Name=="DriveCrossings"or parent.Name=="Sidewalks"or parent.Name=="SignsStops")then roadStructure=true end
+            local name=string.lower(parent.Name)
+            if name:find("building")or name:find("house")or name:find("apartment")or name:find("townhome")or name:find("wall")then building=true;break end
+            parent=parent.Parent
+        end
+        if hit.Normal.Y<.65 and(building or height>8 and not roadStructure)then
+            Worker.LastBlockedInstance=part;Worker.LastBlockedPart=part:GetFullName();Worker.LastTweenRejected="Road blocked";return false
+        end
+        table.insert(ignored,part)
+    end
+    Worker.LastTweenRejected="Route scan incomplete";return false
+end
+function Worker.GrabTween(points,speed,final,expected)
+    check()
+    if not owner:CanVehicleTween(session.model)then return false end
+    brake();check()
+    local vehicle,character=session.model,player.Character
+    local chassis=session.chassis;local start=chassis.CFrame
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include
+    params.FilterDescendantsInstances={workspace.Map,workspace.Terrain};params.RespectCanCollide=true
+    local floor=workspace:Raycast(start.Position+Vector3.new(0,2,0),Vector3.new(0,-15,0),params)
+    if not floor or floor.Normal.Y<.65 then return false end
+    local rideHeight=Worker.GrabRideHeight()
+    local sampled={Vector3.new(start.Position.X,floor.Position.Y+rideHeight,start.Position.Z)};local floorY=floor.Position.Y
+    for _,point in ipairs(points)do
+        local begin=sampled[#sampled];local destination=Vector3.new(point.X,begin.Y,point.Y)
+        local steps=math.max(1,math.ceil(flat(destination-begin).Magnitude/5))
+        for step=1,steps do
+            local p=begin:Lerp(destination,step/steps)
+            local y=Worker.GrabFloor(p,floorY)
+            if not y then Worker.LastTweenRejected="Surface missing or uneven";return false end
+            p=Vector3.new(p.X,y+rideHeight,p.Z)
+            if not Worker.GrabSweep(sampled[#sampled],p)then return false end
+            table.insert(sampled,p);floorY=y
+        end
+    end
+    local offset=start:ToObjectSpace(vehicle:GetPivot());local rider=start:ToObjectSpace(character:GetPivot())
+    local original={};local previousBrake=session.braking;local last=start
+    local support=Instance.new("Part");support.Name="MahanakhonGrabSupport";support.Size=Vector3.new(12,.4,14)
+    support.Anchored=true;support.Transparency=1;support.CanTouch=false;support.CanQuery=false;support.Parent=workspace
+    local bounds,size=vehicle:GetBoundingBox();local bottom=bounds.Position.Y-size.Y/2-start.Position.Y
+    local cleaned=false
+    local function cleanup()
+        if cleaned then return end;cleaned=true
+        for part,collide in pairs(original)do if part.Parent then part.CanCollide=collide end end
+        if support then support:Destroy()end
+        session.braking=previousBrake;session.speed=0
+        if chassis.Parent then chassis.AssemblyLinearVelocity=Vector3.zero end
+        Worker.NativeTweenKmh=nil
+        if Worker.VehicleTweenCleanup==cleanup then Worker.VehicleTweenCleanup=nil end
+    end
+    local ok,message=xpcall(function()
+        Worker.VehicleTweenCleanup=cleanup
+        brake();check();stopInputs();session.braking=true
+        local function apply(cf)
+            check();assert(owner:CanVehicleTween(vehicle),"Tween stopped: vehicle not controlled")
+            if expected then assert(player:GetAttribute("DeliveryState")==expected,"Fare state changed")end
+            assert(Worker.GrabSweep(last.Position,cf.Position),Worker.LastTweenRejected or "Path blocked")
+            for _,container in ipairs({vehicle,character})do for _,part in ipairs(container:GetDescendants())do
+                if part:IsA("BasePart")then
+                    if original[part]==nil then original[part]=part.CanCollide end
+                    part.CanCollide=false;part.AssemblyLinearVelocity=Vector3.zero;part.AssemblyAngularVelocity=Vector3.zero
+                end
+            end end
+            session.speed=final and 0 or speed;session.braking=final;session.heading=math.atan2(-cf.LookVector.X,-cf.LookVector.Z);session.travel=session.heading;session.steerIn=0
+            support.CFrame=CFrame.new(cf.Position+Vector3.new(0,bottom-.25,0))
+            vehicle:PivotTo(cf*offset);character:PivotTo(cf*rider)
+            chassis.AssemblyLinearVelocity=cf.LookVector*(final and 0 or speed)
+            Worker.NativeTweenKmh=(final and 0 or speed)*EcuShared.KMH_PER_STUD;last=cf
+        end
+        for index=2,#sampled do
+            local from=last;local position=sampled[index]
+            local ahead=sampled[math.min(#sampled,index+1)]-sampled[index-1]
+            local direction=flat(ahead);if direction.Magnitude<.1 then direction=flat(last.LookVector)end
+            local target=CFrame.lookAt(position,position+direction.Unit)
+            local segmentSpeed=speed
+            if final then
+                local remaining=flat(position-sampled[#sampled]).Magnitude
+                segmentSpeed=math.min(speed,12+(speed-12)*math.clamp(remaining/60,0,1))
+            end
+            local duration=math.max(.03,(position-from.Position).Magnitude/segmentSpeed);local began=os.clock()
+            repeat
+                local alpha=math.clamp((os.clock()-began)/duration,0,1)
+                apply(from:Lerp(target,alpha));RunService.Heartbeat:Wait()
+            until os.clock()-began>=duration
+            apply(target)
+        end
+        local settle=os.clock()+.2
+        repeat apply(last);RunService.Heartbeat:Wait()until os.clock()>=settle
+    end,tostring)
+    cleanup()
+    if not ok then assert(not cancelled(),"Stopped");Worker.LastTweenFailure=tostring(message);return false end
+    task.wait(.15);check()
+    if flat(chassis.Position-last.Position).Magnitude>12 then
+        Worker.LastTweenFailure="Tween drift";return false
+    end
+    Worker.GrabTweens=(Worker.GrabTweens or 0)+1
+    if final then Worker.ArrivalTweens=(Worker.ArrivalTweens or 0)+1 end
+    return true
+end
+function Worker.GrabOutsidePlan(model,city)
+    local points={};local finish=model.Progress
+    for arc=model.Progress+5,math.min(model.Length-105,model.Progress+220),5 do
+        local a=routePoint(model,math.max(0,arc-2));local b=routePoint(model,math.min(model.Length,arc+2))
+        local kind=Worker.GrabRoadKind(a,b)
+        local outside=kind and(kind.id=="ring"or kind.id=="bridge"or kind.id=="hill")
+        if city then if outside then break end
+        elseif not outside then break end
+        table.insert(points,(routePoint(model,arc)));finish=arc
+    end
+    if finish-model.Progress<10 then return nil end
+    return points,finish
+end
+function Worker.GrabOutsideTween(points,expected,top,model,endArc,city)
+    if jobId=="Grab"and Config.GrabRouteV2 then top=math.min(top,speedLimit())end
+    check();stopInputs()
+    assert(owner:CanVehicleTween(session.model),"Not driving")
+    local vehicle,character=session.model,player.Character;local chassis=session.chassis
+    local start=chassis.CFrame
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include
+    params.FilterDescendantsInstances={workspace.Map,workspace.Terrain};params.RespectCanCollide=true
+    local floor=workspace:Raycast(start.Position+Vector3.new(0,2,0),Vector3.new(0,-18,0),params)
+    if not floor or floor.Normal.Y<.65 then return false end
+    local rideHeight=Worker.GrabRideHeight();local floorY=floor.Position.Y
+    local sampled={Vector3.new(start.Position.X,floor.Position.Y+rideHeight,start.Position.Z)};local arcs={0}
+    for _,point in ipairs(points)do
+        local begin=sampled[#sampled];local goal=Vector3.new(point.X,begin.Y,point.Y)
+        local count=math.max(1,math.ceil(flat(goal-begin).Magnitude/3))
+        for i=1,count do
+            local at=begin:Lerp(goal,i/count);local y=Worker.GrabFloor(at,floorY)
+            if not y then Worker.LastTweenRejected="Bridge surface unavailable";return false end
+            at=Vector3.new(at.X,y+rideHeight,at.Z)
+            if not Worker.GrabSweep(sampled[#sampled],at)then return false end
+            table.insert(arcs,arcs[#arcs]+(at-sampled[#sampled]).Magnitude);table.insert(sampled,at);floorY=y
+        end
+    end
+    local length=arcs[#arcs];if length<1 then return false end
+    local vehicleOffset=start:ToObjectSpace(vehicle:GetPivot());local riderOffset=start:ToObjectSpace(character:GetPivot())
+    local original={};local previousBrake=session.braking;local last=start;local cursor=1
+    local driveSpeed=math.min(top,math.max(0,Worker.TweenDriveSpeed or session.speed or 0))
+    local tweenSpeed=driveSpeed
+    local shared=sessionKind=="Car"and require(RS.CarShared)or BikeShared
+    local accelScale,brakeScale=GameShared.upgradeScales(session.model)
+    local bounds,size=vehicle:GetBoundingBox();local bottom=bounds.Position.Y-size.Y/2-start.Position.Y
+    local support=Instance.new("Part");support.Name="MahanakhonGrabRoadSupport";support.Anchored=true
+    support.Size=Vector3.new(12,.4,14);support.Transparency=1;support.CanTouch=false;support.CanQuery=false;support.Parent=workspace
+    local cleaned=false
+    local function cleanup()
+        if cleaned then return end;cleaned=true
+        for part,collide in pairs(original)do if part.Parent then part.CanCollide=collide end end
+        support:Destroy();session.braking=previousBrake;session.speed=0
+        if chassis.Parent then chassis.AssemblyLinearVelocity=Vector3.zero end
+        Worker.NativeTweenKmh=nil;stopInputs()
+        if cancelled()then Worker.TweenDriveSpeed=nil end
+        if Worker.VehicleTweenCleanup==cleanup then Worker.VehicleTweenCleanup=nil end
+    end
+    local function pointAt(arc)
+        local index=cursor
+        while index<#sampled-1 and arcs[index+1]<arc do index+=1 end
+        local alpha=math.clamp((arc-arcs[index])/math.max(.001,arcs[index+1]-arcs[index]),0,1)
+        return sampled[index]:Lerp(sampled[index+1],alpha),index
+    end
+    Worker.VehicleTweenCleanup=cleanup;stopInputs();session.braking=true
+    local progress=0;local doneDist=0;local startArc=model.Progress;local lastTime=os.clock()
+    local ok,message=xpcall(function()
+        while progress<length do
+            check();assert(player:GetAttribute("DeliveryState")==expected,"Fare state changed")
+            assert(owner:CanVehicleTween(vehicle),"Not driving")
+            local now=os.clock();local dt=math.min(.05,now-lastTime);lastTime=now
+            local wanted=top;local routeArc=startArc+(endArc-startArc)*progress/length
+            local turnPhase=false
+            for _,corner in ipairs(model.Turns)do
+                local plan=Worker.PassengerTurnPlan(corner,routeArc,driveSpeed,sessionKind=="Car",expected)
+                if not Config.GrabKeepTurnSpeed and plan and corner.Exit>=routeArc and plan.Distance<=plan.Lead then
+                    turnPhase=true;wanted=math.min(wanted,plan.Speed)
+                end
+            end
+            local approachSpeed=expected=="ToHome"and 34 or 38
+            local approachDistance=math.max(flat(last.Position-Worker.LegTarget).Magnitude,model.Length-routeArc)-(Config.GrabArrivalRadius or 100)
+            local physicalLead=math.max(0,(brakeDistance(driveSpeed,approachSpeed,sessionKind=="Car")-driveSpeed*.45-8)/1.08)
+            local approachPhase=approachDistance<=physicalLead+math.max(4,driveSpeed*.16)
+            if approachPhase then wanted=math.min(wanted,approachSpeed)end
+            local braking=driveSpeed>wanted+.1
+            if jobId=="Grab"and Config.GrabRouteV2 then
+                driveSpeed,Worker.TweenAcceleration=rideSpeedStep(driveSpeed,wanted,Worker.TweenAcceleration or 0,dt)
+            elseif braking then
+                local nextSpeed=sessionKind=="Car"and shared.brake(driveSpeed,dt*brakeScale)or shared.brake(driveSpeed,dt,brakeScale)
+                driveSpeed=math.max(wanted,nextSpeed)
+            elseif driveSpeed<wanted then
+                local pull=accelScale
+                if session.gears then pull*=GearShared.pull(driveSpeed,top,session.gears,session.gear or 1)end
+                driveSpeed=shared.stepSpeed(driveSpeed,1,math.max(1,wanted),dt,pull,brakeScale)
+            end
+            driveSpeed=math.clamp(driveSpeed,0,top)
+            automaticGear(driveSpeed,top)
+
+            tweenSpeed=driveSpeed
+            progress=math.min(length,progress+tweenSpeed*dt)
+            local at,index=pointAt(progress);cursor=index
+            local ahead=pointAt(math.min(length,progress+5));local behind=pointAt(math.max(0,progress-2))
+            local direction=ahead-behind;if direction.Magnitude<.1 then direction=last.LookVector end
+            local desired=CFrame.lookAt(at,at+direction.Unit)
+            local angle=math.acos(math.clamp(last.LookVector:Dot(desired.LookVector),-1,1))
+            local rotation=last.Rotation:Lerp(desired.Rotation,math.min(1,dt*1.2/math.max(.001,angle)))
+            local cf=CFrame.new(at)*rotation
+            assert(Worker.GrabSweep(last.Position,cf.Position),Worker.LastTweenRejected or "Road blocked")
+            for _,container in ipairs({vehicle,character})do for _,part in ipairs(container:GetDescendants())do
+                if part:IsA("BasePart")then
+                    if original[part]==nil then original[part]=part.CanCollide end
+                    part.CanCollide=false;part.AssemblyLinearVelocity=Vector3.zero;part.AssemblyAngularVelocity=Vector3.zero
+                end
+            end end
+            session.speed=driveSpeed;session.braking=braking;session.heading=math.atan2(-cf.LookVector.X,-cf.LookVector.Z);session.travel=session.heading;session.steerIn=0
+            support.CFrame=CFrame.new(at+Vector3.new(0,bottom-.25,0))
+            vehicle:PivotTo(cf*vehicleOffset);character:PivotTo(cf*riderOffset)
+            chassis.AssemblyLinearVelocity=cf.LookVector*driveSpeed
+            Worker.NativeTweenKmh=driveSpeed*EcuShared.KMH_PER_STUD
+            Worker.CommandThrottle=braking and-1 or(driveSpeed<wanted-.1 and 1 or 0)
+            Worker.CommandSteer=0;session.seat.ThrottleFloat=Worker.CommandThrottle;session.seat.SteerFloat=0
+            last=cf;doneDist=progress
+            Worker.Telemetry={Driver=city and"GrabCityTween"or"GrabOutsideTween",Leg=expected,Speed=driveSpeed,TweenSpeed=tweenSpeed,TargetSpeed=wanted,Braking=braking,TurnPhase=turnPhase,ApproachPhase=approachPhase,RouteProgress=routeArc,Position=tostring(at),Remaining=flat(at-Worker.LegTarget).Magnitude,BrakeReason=approachPhase and(expected=="ToHome"and"Braking for dropoff"or"Braking for pickup")or(turnPhase and"Braking for turn"or"Cruising")}
+            Worker.PeakSpeed=math.max(Worker.PeakSpeed,driveSpeed)
+            RunService.Heartbeat:Wait()
+        end
+    end,tostring)
+    cleanup();Worker.TweenDriveSpeed=driveSpeed
+    if not ok then
+        assert(not cancelled(),"Stopped")
+
+        if doneDist>0 and flat(chassis.Position-last.Position).Magnitude<=12 then
+            local reached=startArc+(endArc-startArc)*doneDist/length
+            model.Progress=math.max(model.Progress,reached)
+            local _,segment=routePoint(model,model.Progress);model.Cursor=segment
+            nextTurn(model)
+            Worker.PartialRouteAdvances=(Worker.PartialRouteAdvances or 0)+1
+        end
+        Worker.LastTweenFailure=tostring(message);Worker.TweenDriveSpeed=nil;return false
+    end
+    if flat(chassis.Position-last.Position).Magnitude>12 then Worker.LastTweenFailure="Bridge drift";return false end
+    if city then Worker.CityTweens=(Worker.CityTweens or 0)+1
+    else Worker.OutsideTweens=(Worker.OutsideTweens or 0)+1 end
+    return true
+end
+function Worker.GrabRouteChunk(model,distance)
+    local points={};local finish=math.min(model.Length,model.Progress+distance)
+    for arc=model.Progress+5,finish,5 do table.insert(points,(routePoint(model,arc)))end
+    if finish-model.Progress>.1 then table.insert(points,(routePoint(model,finish)))end
+    return #points>0 and points or nil,finish
+end
+function Worker.StopTweenMotion()
+    stopInputs()
+    if not session then return end
+    session.speed=0;session.braking=true
+    if session.linear and session.linear:IsA("LinearVelocity")then session.linear.VectorVelocity=Vector3.zero end
+    if session.chassis and session.chassis.Parent then
+        session.chassis.AssemblyLinearVelocity=Vector3.zero;session.chassis.AssemblyAngularVelocity=Vector3.zero
+    end
+end
+function Worker.DriveGrabRoute(target,leg,expected)
+    local chassis=session.chassis
+    Worker.LegTarget=target;Worker.DriverVersion="GrabTweenOnly"
+    Worker.AlleyPhase=nil;Worker.AlleyExit=nil;Worker.AlleyEntered=nil
+    local fare=HttpService:JSONDecode(player:GetAttribute("DeliveryJob")or"{}")
+    local key=tostring(fare.acceptedAt or player:GetAttribute("DeliveryJob"))..":"..expected
+    if not Worker.LegWatch or Worker.LegWatch.Key~=key then
+        Worker.LegWatch={Key=key,FareId=tostring(fare.acceptedAt),State=expected,Best=flat(chassis.Position-target).Magnitude,ProgressAt=os.clock(),StartedAt=os.clock(),StartRecoveries=Worker.Recoveries or 0}
+    end
+    local model
+    local function replace(points)
+        model=routeModel(points);Worker.Route=model.Points
+        Worker.RouteGeneration=(Worker.RouteGeneration or 0)+1
+    end
+    replace(Worker.GrabRoutePoints(target))
+    local began=os.clock();local blockedAt;local lastPlan=0;local arrivalTriedAt=0
+    while true do
+        check()
+        local state=player:GetAttribute("DeliveryState")
+        if expected=="ToShop"and state=="ToHome"then Worker.StopTweenMotion();return end
+        assert(state==expected,"Fare state changed")
+        if player:GetAttribute("DeliveryArrived")==true then Worker.StopTweenMotion();return end
+        assert(os.clock()-began<Config.TripTimeout,"Trip timed out")
+        local remaining=flat(chassis.Position-target).Magnitude
+        if remaining<Worker.LegWatch.Best-8 then Worker.LegWatch.Best=remaining;Worker.LegWatch.ProgressAt=os.clock()end
+        if remaining<=10 then
+            Worker.StopTweenMotion()
+            local untilAt=os.clock()+1.2
+            repeat
+                check()
+                if player:GetAttribute("DeliveryArrived")==true then return end
+                if expected=="ToShop"and player:GetAttribute("DeliveryState")=="ToHome"then return end
+                task.wait(.1)
+            until os.clock()>=untilAt
+        end
+        if remaining<=(Config.GrabArrivalRadius or 100)and os.clock()-arrivalTriedAt>1.5 then
+            arrivalTriedAt=os.clock();status("Approaching "..(expected=="ToShop"and"Pickup"or"Dropoff"))
+            if Worker.GrabTween({Vector2.new(target.X,target.Z)},Config.GrabArrivalSpeed or 32,true,expected)then
+                Worker.StopTweenMotion()
+                local deadline=os.clock()+4
+                repeat check();if player:GetAttribute("DeliveryArrived")==true then return end;task.wait(.1)until os.clock()>=deadline
+                if flat(chassis.Position-target).Magnitude<8 then Worker.NeedsReset=true;error("Waiting for arrival",0)end
+            end
+        end
+        local top=speedLimit()
+        Worker.Limits.TargetStuds=top;Worker.Limits.TargetKmh=top*EcuShared.KMH_PER_STUD
+        local points,finish=Worker.GrabOutsidePlan(model)
+        local city=false
+        if not points then points,finish=Worker.GrabOutsidePlan(model,true);city=true end
+        if not points then points,finish=Worker.GrabRouteChunk(model,30);city=true end
+        local arrivalEntry=model.Length-(Config.GrabArrivalRadius or 100)
+        if points and model.Progress<arrivalEntry and finish>arrivalEntry then
+            points,finish=Worker.GrabRouteChunk(model,arrivalEntry-model.Progress)
+        end
+        local moved=false
+        if points then
+            status(city and"City route"or"Road route")
+            moved=Worker.GrabOutsideTween(points,expected,top,model,finish,city)
+            if not moved then
+                Worker.StopTweenMotion()
+
+                for _,distance in ipairs({60,20,5})do
+                    local shorter,shortEnd=Worker.GrabRouteChunk(model,distance)
+                    if shorter and Worker.GrabOutsideTween(shorter,expected,top,model,shortEnd,city)then
+                        moved=true;finish=shortEnd;break
+                    end
+                    Worker.StopTweenMotion()
+                end
+            end
+        end
+        if moved then
+            model.Progress=finish;local _,segment=routePoint(model,finish);model.Cursor=segment
+            nextTurn(model);blockedAt=nil;Worker.StopTweenMotion()
+            continue
+        end
+        Worker.StopTweenMotion();blockedAt=blockedAt or os.clock()
+        status("Blocked; finding detour")
+        Worker.Telemetry={Driver="GrabTweenOnlyWaiting",Leg=leg,Speed=0,TweenSpeed=0,Remaining=remaining,Reason=Worker.LastTweenRejected or Worker.LastTweenFailure}
+        if os.clock()-lastPlan>2 then
+            lastPlan=os.clock();local obstacle=Worker.LastBlockedInstance
+            local hit=routeCast(chassis.Position,Vector3.new(target.X,chassis.Position.Y,target.Z))
+            if hit then obstacle=hit.Instance end
+            local detour=detourRoute(model.Points,model.Cursor+1,obstacle)
+            if detour then replace(detour);Worker.Detours=(Worker.Detours or 0)+1
+            else replace(Worker.GrabRoutePoints(target))end
+        end
+        if os.clock()-blockedAt>30 then Worker.NeedsReset=true;error("Route stalled; recovering fare",0)end
+        task.wait(.2)
+    end
+end
+function Worker.DriveTo(target,leg,expected)
+    if Config.GrabRouteV2 and expected then return Worker.DriveGrabRoute(target,leg,expected)end
+    if Config.GeneralTravelTween then return Worker.DriveTravelTween(target,leg,expected)end
+    assert(session,"Prepare the vehicle first")
+    local chassis=session.chassis
+    local dropoff=expected=="ToHome"
+    Worker.LegTarget=expected and target or nil
+    if Config.FareAlleyRouting and expected then
+        local data=HttpService:JSONDecode(player:GetAttribute("DeliveryJob")or"{}")
+        local key=tostring(data.acceptedAt or player:GetAttribute("DeliveryJob"))..":"..expected..":"..tostring(target)
+        if Worker.AlleyLegKey~=key then
+            Worker.AlleyLegKey=key;Worker.AlleyPhase=nil;Worker.AlleyEntered=nil;Worker.AlleyExit=nil
+        end
+        local sourceMouth=alleyMouth(chassis.Position)
+        local destinationMouth=alleyMouth(target)
+        if sourceMouth and destinationMouth and chassis.Position.X*target.X>0
+            and math.abs(sourceMouth.Z-destinationMouth.Z)<20 then Worker.AlleyPhase="destination"end
+    end
+    if expected then Worker.DestinationAlleyRoute(chassis.Position,target)end
+    Worker.PlanAlleyExit(target,expected)
+    Worker.TryExitAlley(target)
+    if expected and Config.ObstacleTween and math.abs(chassis.Position.X)<85 and chassis.Position.X*target.X<0 then
+        local across=Vector3.new(target.X<0 and-Config.LaneOffset or Config.LaneOffset,chassis.Position.Y,chassis.Position.Z)
+        if tweenVehiclePast(nil,across-chassis.Position,across)then Worker.CrossLaneTweens=(Worker.CrossLaneTweens or 0)+1;Worker.FaceDirection(Vector3.new(0,0,target.Z-session.chassis.Position.Z))end
+    end
+    Worker.TryEnterAlley(target,expected)
+    if Worker.TryDirectArrival(target,expected)then return end
+    local terminalStopRadius=dropoff and 4 or(expected and 10 or Config.StopRadius)
+    if expected then
+        local fareData=HttpService:JSONDecode(player:GetAttribute("DeliveryJob")or"{}")
+        local key=tostring(fareData.acceptedAt or player:GetAttribute("DeliveryJob"))..":"..expected
+        if not Worker.LegWatch or Worker.LegWatch.Key~=key then
+            Worker.LegWatch={Key=key,FareId=tostring(fareData.acceptedAt),State=expected,Best=(flat(chassis.Position)-flat(target)).Magnitude,ProgressAt=os.clock(),StartedAt=os.clock(),StartRecoveries=Worker.Recoveries or 0}
+        end
+    end
+    if expected and not dropoff and player:GetAttribute("DeliveryArrived")==true then brake();return end
+    if Config.TweenArrival and(flat(chassis.Position)-flat(target)).Magnitude<40 then
+        if tweenVehiclePast(nil,target-chassis.Position,Config.ArrivalGoal or target)then return end
+    end
+    if(flat(chassis.Position)-flat(target)).Magnitude<(Config.RoadWorkArrival and 5 or 22)and math.abs(chassis.Position.Y-target.Y)<12 then brake();return end
+    local driveTarget=target
+    if expected then
+        driveTarget=roadsideTarget(target)
+    end
+    Worker.DriveTarget=driveTarget
+    local model
+    local function replaceRoute(points,recovery)
+        model=routeModel(points);model.Recovery=recovery==true;Worker.Route=model.Points
+        Worker.RouteGeneration=(Worker.RouteGeneration or 0)+1
+    end
+    local function replan()replaceRoute(smoothRoute(laneRoute(driveTarget)))end
+    replan()
+    local started=os.clock();local pauseBase=Worker.ManualPauseTotal or 0;local improvedAt=os.clock();local lastProgress=0
+    local motionAt,motionPosition=os.clock(),flat(chassis.Position)
+    local obstacleAt,cachedHit,cachedDistance=0,nil,math.huge
+    local braking=false;local throttleControl={};local goalApproach=false;local offRouteAt;local planAt=-math.huge
+    local approachRefreshed=false
+    Worker.Recoveries=0;status(leg or"Driving")
+    while true do
+        local paused=check()
+        if paused>0 then improvedAt+=paused;motionAt+=paused;offRouteAt=nil;planAt+=paused;obstacleAt=0 end
+        if expected then
+            assert(player:GetAttribute("DeliveryState")==expected,"Fare state changed")
+
+            if not dropoff and player:GetAttribute("DeliveryArrived")==true then brake();return end
+        end
+        assert(os.clock()-started-((Worker.ManualPauseTotal or 0)-pauseBase)<Config.TripTimeout,"Route timed out")
+        local position=flat(chassis.Position);local pos2=Vector2.new(position.X,position.Z)
+        local speed=flat(chassis.AssemblyLinearVelocity).Magnitude
+        local crossTrack=projectRoute(model,pos2,speed)
+        local remaining=math.max(0,model.Length-model.Progress)
+        local terminal=(pos2-model.Points[#model.Points]).Magnitude
+        local realRemaining=(position-flat(target)).Magnitude
+        if Config.TweenArrival and realRemaining<40 then
+            if tweenVehiclePast(nil,target-chassis.Position,Config.ArrivalGoal or target)then return end
+        end
+        if expected and Config.FareAlleyRouting and Worker.AlleyPhase~="destination"then
+            local inward=Worker.DestinationAlleyRoute(chassis.Position,target)
+            if inward then
+                replaceRoute(inward,false);Worker.AlleyBlockedAt=nil
+                lastProgress=0;improvedAt=os.clock();motionAt=os.clock();motionPosition=flat(chassis.Position)
+                cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false;throttleControl={}
+                continue
+            end
+        end
+        local watch=Worker.LegWatch
+        if expected and watch and realRemaining<watch.Best-20 then watch.Best=realRemaining;watch.ProgressAt=os.clock()end
+
+        if expected and realRemaining<160 and not approachRefreshed then
+            approachRefreshed=true;driveTarget=roadsideTarget(target);Worker.DriveTarget=driveTarget
+            replan();lastProgress=0;improvedAt=os.clock();cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false
+            continue
+        end
+        if Worker.TryExitAlley(target)then
+            replan();lastProgress=0;improvedAt=os.clock();motionAt=os.clock();motionPosition=flat(chassis.Position)
+            cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false;continue
+        end
+        if Worker.TryEnterAlley(target,expected)then
+            replan();lastProgress=0;improvedAt=os.clock();motionAt=os.clock();motionPosition=flat(chassis.Position)
+            cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false;continue
+        end
+        if Worker.TryDirectArrival(target,expected)then return end
+        if terminal<terminalStopRadius and(not expected or realRemaining<(Config.RoadWorkArrival and 5 or 31))then brake();return end
+        if model.Progress>lastProgress+1 then lastProgress,improvedAt=model.Progress,os.clock();Worker.AlleyBlockedAt=nil end
+        if os.clock()-motionAt>2.5 then
+            if(position-motionPosition).Magnitude<4 and((Worker.CommandThrottle or 0)>.3 or cachedDistance<50)then improvedAt=0 end
+            motionAt,motionPosition=os.clock(),position
+        end
+        if crossTrack>18 then offRouteAt=offRouteAt or os.clock()else offRouteAt=nil end
+        local aligning=Worker.Telemetry and math.abs(Worker.Telemetry.HeadingError or 0)>1 and speed<15
+        if(os.clock()-improvedAt>(aligning and 12 or 3.5)or(offRouteAt and os.clock()-offRouteAt>1))and os.clock()-planAt>2 then
+            Worker.Recoveries+=1;status("Recovering route alignment")
+            brake()
+            if Worker.IsDestinationApproach(target)then
+                Worker.AlleyBlockedAt=Worker.AlleyBlockedAt or os.clock()
+                status("Approaching destination without reversing")
+                if Worker.TryDirectArrival(target,expected)then return end
+                if os.clock()-Worker.AlleyBlockedAt>=45 then
+                    Worker.NeedsReset=true;error("Destination alley blocked; recovering",0)
+                end
+                local inward=Worker.DestinationAlleyRoute(chassis.Position,target)
+                if inward then replaceRoute(inward,true)else replan()end
+                planAt=os.clock();offRouteAt=nil;lastProgress=0;improvedAt=os.clock();motionAt=os.clock();motionPosition=flat(chassis.Position)
+                cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false;throttleControl={}
+                continue
+            end
+            local stuck=os.clock()-improvedAt>3.5
+            local canPass=Config.ObstacleTween and owner:CanVehicleTween(session.model)
+            if stuck and canPass then
+                local routeAim=routePoint(model,math.min(model.Length,model.Progress+35))
+                local direction=Vector3.new(routeAim.X-chassis.Position.X,0,routeAim.Y-chassis.Position.Z)
+                local direct=direction.Magnitude>.1 and routeCast(chassis.Position,chassis.Position+direction.Unit*35)
+                if direct and tweenVehiclePast(direct,direction)then
+                    replan();planAt=os.clock();offRouteAt=nil;lastProgress=0;improvedAt=os.clock();motionAt=os.clock();motionPosition=flat(chassis.Position)
+                    cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false;continue
+                end
+            end
+
+            canPass=false
+            if stuck then backOff()end
+            local nearby=expected and realRemaining<100 and roadsideTarget(target,true)
+            local detour
+            if nearby and nearby~=target then
+                driveTarget=nearby;Worker.DriveTarget=nearby
+                detour={Vector2.new(chassis.Position.X,chassis.Position.Z),Vector2.new(nearby.X,nearby.Z)}
+            elseif not canPass then detour=cachedHit and detourRoute(model.Points,model.Cursor+1,cachedHit.Instance)end
+            if detour then replaceRoute(detour,true);Worker.Detours=(Worker.Detours or 0)+1 else replan()end
+            planAt=os.clock();offRouteAt=nil;lastProgress=0;improvedAt=os.clock();motionAt=os.clock();motionPosition=flat(chassis.Position)
+            cachedHit,cachedDistance=nil,math.huge;obstacleAt=0;goalApproach=false;braking=false;throttleControl={}
+            continue
+        end
+        local top=speedLimit()
+        automaticGear(speed,Worker.Limits.NativeTopStuds)
+        local wanted,reason=top,"cruise"
+        if Worker.AlleyExit and not Worker.AlleyExit.Done then
+            local plan=Worker.AlleyExit
+            local edge=Vector3.new(plan.Side*85,chassis.Position.Y,plan.Mouth.Z)
+            local exitDistance=flat(edge-chassis.Position).Magnitude
+            local allowed=math.sqrt(2*Config.ComfortDecel*math.max(0,exitDistance-18))
+            if allowed<wanted then wanted,reason=allowed,"Braking before alley exit"end
+        end
+        if expected then
+            local mouth=alleyMouth(target)
+            local distance=mouth and math.abs(chassis.Position.X)<85 and math.abs(chassis.Position.Z-mouth.Z)or realRemaining
+            local comfortable=math.sqrt(2*Config.ComfortDecel*math.max(0,distance-12))
+            if comfortable<wanted then wanted,reason=comfortable,"Braking before alley entrance"end
+        end
+        if model.Recovery then wanted,reason=24,"recovery"end
+        local sharp=nextTurn(model)
+        local pendingMouth=expected and math.abs(chassis.Position.X)<85 and alleyMouth(target)
+        local passengerTurn=Worker.PassengerTurnPlan(sharp,model.Progress,speed,sessionKind=="Car",expected)
+        local passengerCap=Worker.PassengerTurnCap(model,speed,sessionKind=="Car",expected)
+        if passengerCap then
+            wanted=math.min(wanted,passengerCap.Speed);reason=expected=="ToHome"and"Braking for turn with passenger"or"Braking for turn"
+            Worker.LastPassengerTurn={Speed=speed,Target=passengerCap.Speed,Distance=passengerCap.Distance,BrakeLead=passengerCap.Lead,Angle=passengerCap.Angle}
+        else Worker.LastPassengerTurn=nil end
+        if expected and Config.FareTurnTween and sharp and owner:IsSharpDriveTurn(sharp.Angle)
+            and sharp.Entry-model.Progress<=math.max(18,speed*.2)and sharp.Exit>model.Progress
+            and(not passengerTurn or passengerTurn.Ready)then
+            local exitArc=math.min(model.Length,sharp.Exit+14)
+            local previousTurnSpeed=Config.FareTurnTweenSpeed
+            if passengerTurn then Config.FareTurnTweenSpeed=math.min(previousTurnSpeed or 90,passengerTurn.Speed)end
+            local turnOk,turnError=pcall(Worker.TweenFareRoute,model,model.Progress,exitArc,false)
+            Config.FareTurnTweenSpeed=previousTurnSpeed
+            assert(turnOk,turnError)
+            Worker.LastCornerTweenAt=os.clock();Worker.CornerTweens=(Worker.CornerTweens or 0)+1
+            model.Progress=exitArc;model.LatchedTurn=nil;model.TurnIndex+=1
+            local _,exitSegment=routePoint(model,exitArc);model.Cursor=exitSegment
+            lastProgress=exitArc;improvedAt=os.clock();motionAt=os.clock();motionPosition=flat(chassis.Position)
+            cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false;throttleControl={}
+            continue
+        end
+        if not(expected and Config.FareTurnTween)and not pendingMouth and Config.TurnTween and sharp and owner:IsSharpDriveTurn(sharp.Angle)and(not Config.RoadWorkArrival or os.clock()-(Worker.LastCornerTweenAt or 0)>2.5)and sharp.Entry-model.Progress<=math.max(16,brakeDistance(speed,0,sessionKind=="Car")+16) and sharp.Exit>model.Progress then
+            local exitArc=math.min(model.Length,sharp.Exit+12)
+            local exit=routePoint(model,exitArc)
+            local destination=Vector3.new(exit.X,chassis.Position.Y,exit.Y)
+            local aheadFloor=groundY(destination)
+            local descending=Config.RoadWorkArrival and groundY(chassis.Position)-aheadFloor>1
+            if not descending and tweenVehiclePast(nil,destination-chassis.Position,destination)then
+                Worker.LastCornerTweenAt=os.clock()
+                Worker.CornerTweens=(Worker.CornerTweens or 0)+1
+                local nextPoint=routePoint(model,math.min(model.Length,exitArc+18))
+                Worker.FaceDirection(Vector3.new(nextPoint.X-chassis.Position.X,0,nextPoint.Y-chassis.Position.Z))
+                model.Progress=exitArc;model.LatchedTurn=nil;model.TurnIndex+=1
+                local _,exitSegment=routePoint(model,exitArc);model.Cursor=exitSegment
+                lastProgress=exitArc;improvedAt=os.clock();motionAt=os.clock();motionPosition=flat(chassis.Position)
+                cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false;continue
+            end
+        end
+        local cornerCap,turnDistance=turnLimit(model,speed,sessionKind=="Car")
+        if cornerCap and cornerCap<wanted and not(Config.TurnTween and model.LatchedTurn and owner:IsSharpDriveTurn(model.LatchedTurn.Angle))then wanted,reason=cornerCap,"next-turn"end
+        local slopePoint=routePoint(model,model.Progress+40)
+        local slopeY=groundY(Vector3.new(slopePoint.X,chassis.Position.Y,slopePoint.Y))
+        local roadY=groundY(chassis.Position)
+        local down=roadY-slopeY>1
+        local upcoming=nextTurn(model)
+        if down and upcoming and not(Config.TurnTween and owner:IsSharpDriveTurn(upcoming.Angle))and upcoming.Entry-model.Progress<brakeDistance(speed,math.min(upcoming.Speed,45),sessionKind=="Car")*1.2 then
+            model.LatchedTurn=upcoming
+            wanted=math.min(wanted,upcoming.Speed,45);reason="bridge-turn"
+        end
+        if not Config.TweenArrival and remaining<=brakeDistance(speed,8,sessionKind=="Car")+12 then goalApproach=true end
+        if goalApproach then
+            local approach=remaining<12 and 5 or 18
+            if approach<wanted then wanted,reason=approach,"destination"end
+        end
+        local lookahead=math.clamp(12+speed*.13,14,36)
+        local aimArc=model.Progress+lookahead
+        local corner=nextTurn(model)
+        if corner and model.Progress<corner.Entry and speed>corner.Speed+10 then aimArc=math.min(aimArc,corner.Entry)end
+        local aim2=routePoint(model,aimArc)
+
+        while aimArc-model.Progress>3 do
+            if not routeCast(chassis.Position,Vector3.new(aim2.X,chassis.Position.Y,aim2.Y))then break end
+            aimArc=model.Progress+(aimArc-model.Progress)*.6
+            aim2=routePoint(model,aimArc)
+            if wanted>12 then wanted,reason=12,"narrow-turn"end
+        end
+        local aim=Vector3.new(aim2.X,0,aim2.Y)
+        local aimDelta=aim-position
+        if aimDelta.Magnitude<1 then aimDelta=(CFrame.Angles(0,session.heading,0)).LookVector*2 end
+        local desired=math.atan2(-aimDelta.X,-aimDelta.Z)
+        local angle=math.atan2(math.sin(desired-session.heading),math.cos(desired-session.heading))
+        if model.Recovery and crossTrack<5 and math.abs(angle)<.2 then
+            local ground=workspace:Raycast(chassis.Position+Vector3.new(0,2,0),Vector3.new(0,-8,0),castParams)
+            if ground and ground.Material==Enum.Material.Asphalt then model.Recovery=false end
+        end
+        if math.abs(angle)>.5 and wanted>18 then wanted,reason=18,"align-route"end
+        if crossTrack>8 and wanted>35 then wanted,reason=35,"align-route"end
+        if math.abs(angle)>1.15 and wanted>8 then wanted,reason=8,"align-route"end
+        local scanDistance=math.clamp(speed*(sessionKind=="Car"and 2.1 or 1.9)+30,45,550)
+        if os.clock()>=obstacleAt then
+            obstacleAt=os.clock()+.15;cachedHit,cachedDistance=nil,math.huge
+            local from=chassis.Position;local travelled=0;local arc=model.Progress
+            while travelled<scanDistance and arc<model.Length do
+                local _,segment=routePoint(model,arc+.001)
+                local step=math.min(16,scanDistance-travelled,model.Length-arc,model.Arc[segment+1]-arc)
+                if step<.1 then break end
+                local point=routePoint(model,arc+step);local to=Vector3.new(point.X,from.Y,point.Y)
+                local found=routeCast(from,to)
+                if found then cachedHit,cachedDistance=found,travelled+found.Distance;break end
+                travelled+=step;arc+=step;from=Vector3.new(to.X,groundY(to)+1,to.Z)
+            end
+        end
+        if Config.ObstacleTween and owner:CanVehicleTween(session.model)then
+            local forward=flat(chassis.CFrame.LookVector)
+            if forward.Magnitude>.1 then
+                local direct=routeCast(chassis.Position,chassis.Position+forward.Unit*35)
+                if direct then cachedHit=direct;cachedDistance=direct.Distance end
+            end
+        end
+        if cachedHit then
+            Worker.Obstacle=cachedHit.Instance:GetFullName()
+            if Config.ObstacleTween and cachedDistance<40 and owner:CanVehicleTween(session.model)then
+                local passDirection=aimDelta
+                if tweenVehiclePast(cachedHit,passDirection)then
+                    replan();lastProgress=0;improvedAt=os.clock();motionAt=os.clock();cachedHit=nil;cachedDistance=math.huge;obstacleAt=0;goalApproach=false
+                    continue
+                end
+            end
+            if cachedDistance<=math.max(18,brakeDistance(speed,0,sessionKind=="Car")+8)then
+                local cap=cachedDistance<18 and 0 or 14
+                if cap<wanted then wanted,reason=cap,"obstacle"end
+            end
+            if not Worker.IsDestinationApproach(target)and cachedDistance<65 and speed<26 and os.clock()-planAt>2 then
+                brake()
+                local detour=detourRoute(model.Points,model.Cursor+1,cachedHit.Instance)
+                planAt=os.clock()
+                if detour then
+                    replaceRoute(detour,true);Worker.Detours=(Worker.Detours or 0)+1
+                    lastProgress=0;improvedAt=os.clock();cachedHit,cachedDistance=nil,math.huge;obstacleAt=0;goalApproach=false
+                    continue
+                end
+            end
+        else Worker.Obstacle=nil end
+        if math.abs(angle)>.8 and speed<8 and owner:CanVehicleTween(session.model)and os.clock()-(Worker.LastTurnTweenAt or 0)>1.5 then
+            Worker.LastTurnTweenAt=os.clock()
+            if Worker.FaceDirection(aimDelta)then improvedAt=os.clock();motionAt=os.clock();continue end
+        end
+        local yaw
+        if sessionKind=="Bike"then yaw=math.abs(BikeShared.yawRate(math.max(speed,2),1,session.wheelbase))
+        else
+            local shared=require(RS.CarShared);local steer=session.model:GetAttribute("MaxSteer")or shared.MAX_STEER
+            local maxAngle=math.min(steer,shared.maxSteer(speed)*steer/shared.MAX_STEER)
+            yaw=math.abs(shared.yawRate(math.max(speed,2),maxAngle,session.wheelbase))
+        end
+        local requestedYaw=2*math.max(speed,2)*math.sin(angle)/math.max(aimDelta.Magnitude,3)
+        local steer=math.clamp(-requestedYaw/math.max(yaw,.01),-1,1)
+        if math.abs(angle)>.9 then steer=math.clamp(-angle*1.5,-1,1)end
+        if math.abs(angle)>1.5 and speed>25 then steer=0 end
+        local throttle
+        throttle,braking=driveThrottle(throttleControl,speed,wanted,os.clock())
+        session.seat.SteerFloat=steer;session.seat.ThrottleFloat=throttle
+        Worker.CommandSteer,Worker.CommandThrottle=steer,throttle
+        safety()
+        Worker.PeakSpeed=math.max(Worker.PeakSpeed,speed)
+        if speed>4 then Worker.LastRecovery=nil;Worker.Status=leg or"Driving"end
+        Worker.Telemetry={Leg=leg,Speed=speed,TargetSpeed=wanted,Remaining=realRemaining,
+            Waypoint=model.Cursor+1,Waypoints=#model.Points,RouteProgress=model.Progress,PathRemaining=remaining,
+            NextTurnDistance=turnDistance,BrakeReason=reason,BrakeEpisodes=throttleControl.Episodes or 0,Downhill=down,StalledFor=watch and(os.clock()-watch.ProgressAt)or 0,Braking=braking,HeadingError=angle,Lookahead=lookahead,
+            CrossTrack=crossTrack,Position=tostring(position),CommandSteer=steer,CommandThrottle=throttle,NetworkOwner=isnetworkowner(chassis)}
+        task.wait(.03)
+    end
+end
+
+local function waitFor(predicate, seconds, description)
+    local deadline = os.clock() + seconds
+    repeat
+        deadline+=check()
+        if predicate() then return end
+        task.wait(.15)
+    until os.clock() > deadline
+    error(description)
+end
+
+local function readyRide()
+    if Config.GeneralTravelTween and not Worker.TravelSpawnPrepared then Worker.PrepareTravelDeparture()end
+    prepareVehicle()
+    local tries=0
+    while Config.RandomVehicle and CareShared.fuel(session.model)<=5 do
+        check();tries+=1;assert(tries<32,"No fueled vehicle")
+        owner.ShopVehicleFuel[Config.VehicleId]=CareShared.fuel(session.model)
+        Config.RandomChosen=false;prepareVehicle()
+    end
+    if Config.SpawnOnRoad and not Config.GrabRouteV2 and not Worker.ExitedToRoad then
+        Worker.ExitToRoad(session.chassis.Position+Vector3.new(0,0,100))
+    end
+end
+local function serviceFuel(force)
+    check()
+    if not session or not session.model.Parent then return end
+    local vehicle=session.model
+    if CareShared.fuel(vehicle)>(force and 99 or Config.RefuelBelow or 30)then return end
+    local delivery=player:GetAttribute("DeliveryState")
+    if not force and(delivery=="ToShop"or delivery=="ToHome")and CareShared.fuel(vehicle)>5 then return end
+    brake();status("Refueling")
+    Worker.CommandThrottle,Worker.CommandSteer=0,0
+    local before=player:GetAttribute("Cash")or 0
+    if ShopShared.count(player,"FuelCan")<1 then
+        local item=assert(ShopShared.item("FuelCan"))
+        assert(before>=item.price,"Not enough cash")
+        local bought,message=invoke(Remotes.Shop,"Buy","FuelCan");assert(bought,tostring(message))
+        Worker.FuelSpent+=math.max(0,before-(player:GetAttribute("Cash")or before))
+        task.wait(.2)
+    end
+    local character=player.Character;local humanoid=character:FindFirstChildOfClass("Humanoid")
+    restore();session=nil
+    if humanoid.SeatPart then
+        if isCar(vehicle)then Net.fire(RS.CarRemote,"Exit",vehicle)else Net.fire(RS.PCX160Remote,"Dismount","Start")end
+        local deadline=os.clock()+8
+        repeat check();task.wait(.1)until not humanoid.SeatPart or os.clock()>deadline
+        assert(not humanoid.SeatPart,"Could not dismount for refueling")
+        task.wait(.4)
+    end
+    local root=character:FindFirstChild("HumanoidRootPart")
+    if root and(root.Position-vehicle:GetPivot().Position).Magnitude>12 then walk(vehicle:GetPivot():PointToWorldSpace(Vector3.new(-5,0,0)))end
+    local tool
+    for _,container in ipairs({character,player:FindFirstChildOfClass("Backpack")})do
+        if container then for _,item in ipairs(container:GetChildren())do
+            if item:IsA("Tool")and(item:GetAttribute("FuelCan")or item:GetAttribute("ShopItem")=="FuelCan")then tool=item;break end
+        end end
+    end
+    if tool and tool.Parent~=character then humanoid:EquipTool(tool);task.wait(.15)end
+    local used,message=invoke(Remotes.Shop,"Use","FuelCan",vehicle)
+    assert(used,tostring(message))
+    local deadline=os.clock()+12
+    repeat check();task.wait(.2)until CareShared.fuel(vehicle)>=95 or os.clock()>deadline
+    assert(CareShared.fuel(vehicle)>=95,"Waiting for fuel")
+    humanoid:UnequipTools()
+    Worker.Refuels=(Worker.Refuels or 0)+1
+    prepareVehicle()
+end
+function Worker.RefuelNow()return serviceFuel(true)end
+
+local function oneFare()
+    Worker.LegWatch=nil
+    owner:SetFarmStage(jobId,"Accepting fare")
+    serviceFuel(false)
+    local before = player:GetAttribute("Cash") or 0
+    local beforeEarned=player:GetAttribute("DeliveryEarned")or 0
+    local count = player:GetAttribute("DeliveryJobs") or 0
+    local nextStart, nextAccept = 0, 0
+    local function retryOffer()
+        status("Waiting for offer update")
+        Worker.LegWatch=nil
+        nextStart=os.clock()+2;nextAccept=os.clock()+2
+        task.wait(.3)
+    end
+    while true do
+        check()
+        local state = player:GetAttribute("DeliveryState") or "Off"
+        if state == "ToShop" or state == "ToHome" then break end
+        if owner.PistonBuy and owner.PistonBuy.PausePending then status("Fare finished; waiting for shop trip");task.wait(.1);continue end
+        local now = os.clock()
+        local cooldown=math.max(0,(tonumber(player:GetAttribute("DeliveryCooldownEnd"))or 0)-workspace:GetServerTimeNow())
+        if cooldown>0 then
+            Worker.CooldownRemaining=cooldown
+            status(("Next fare: %ds"):format(math.ceil(cooldown)))
+            task.wait(math.min(.25,cooldown))
+            continue
+        end
+        Worker.CooldownRemaining=0
+        if state == "Off" and now >= nextStart then
+            status("Searching: "..jobLabel)
+            local ok, message = invoke(Remotes.Delivery, "Start", mode)
+            nextStart = now + 1
+            if not ok then Worker.LastAcceptMessage = tostring(message) end
+        elseif state == "Offer" and now >= nextAccept then
+            status("Accepting: "..jobLabel)
+            Worker.OfferSeenAt = now
+            local offer=HttpService:JSONDecode(player:GetAttribute("DeliveryJob")or"{}")
+            if tonumber(offer.offerEnds)and offer.offerEnds<=workspace:GetServerTimeNow()+.4 then
+                retryOffer();continue
+            end
+            local call,ok,message=pcall(invoke,Remotes.Delivery,"Accept",nil)
+            nextAccept = os.clock() + .8
+            if not call then
+                Worker.LastAcceptMessage=tostring(ok);Worker.LastAcceptError=tostring(ok)
+                status("Accept failed; searching again")
+                retryOffer();continue
+            end
+            Worker.LastAcceptMessage = if ok then nil else tostring(message)
+            if not ok and tostring(message):lower():find("expired",1,true)then
+                retryOffer()
+            end
+            if ok then Worker.AcceptedAt = os.clock() end
+        end
+        RunService.Heartbeat:Wait()
+    end
+    waitFor(function() return player:GetAttribute("DeliveryJob") ~= nil end, 5, "Accepted fare data unavailable")
+    local data = HttpService:JSONDecode(assert(player:GetAttribute("DeliveryJob"), "No accepted fare"))
+    local roundStarted=tonumber(data.acceptedAt)or workspace:GetServerTimeNow()
+    assert(data.kind==(mode=="grab"and"ride"or mode),"Fare type mismatch")
+    owner:SetFarmStage(jobId,"Working")
+    Worker.Fare = data.fee
+    if player:GetAttribute("DeliveryState") == "ToShop" then
+        if player:GetAttribute("DeliveryArrived") ~= true then
+            Worker.DriveTo(Vector3.new(data.shop.x, data.shop.y, data.shop.z), "Pickup", "ToShop")
+        end
+        waitFor(function() return player:GetAttribute("DeliveryArrived") == true end, 12, "Pickup arrival not confirmed")
+        local ok, message = invoke(Remotes.Delivery, "Confirm", nil)
+        assert(ok, tostring(message))
+        waitFor(function() return player:GetAttribute("DeliveryState") == "ToHome" end, 15, "Passenger did not board")
+    end
+    assert(player:GetAttribute("DeliveryState") == "ToHome", "Passenger is not on board")
+    Worker.DriveTo(Vector3.new(data.home.x, data.home.y, data.home.z), "Dropoff", "ToHome")
+    waitFor(function() return player:GetAttribute("DeliveryArrived") == true end, 12, "Dropoff arrival not confirmed")
+    local ok, message = invoke(Remotes.Delivery, "Confirm", nil)
+    assert(ok, tostring(message))
+    waitFor(function() return (player:GetAttribute("DeliveryJobs") or 0) > count end, 15, "Payment not confirmed")
+    owner:SetFarmStage(jobId,"Fare completed");owner:UpdateFarmSession()
+    Worker.Trips += 1
+    Worker.Earned=math.max(0,(player:GetAttribute("DeliveryEarned")or 0)-(Worker.StartEarned or 0))
+    owner:SendWorkWebhook(tostring(data.acceptedAt or count)..":"..tostring(count),jobLabel,math.max(0,(player:GetAttribute("DeliveryEarned")or 0)-beforeEarned),workspace:GetServerTimeNow()-roundStarted)
+    status(("Completed %d fare(s), earned %d"):format(Worker.Trips, Worker.Earned))
+    RunService.Heartbeat:Wait()
+end
+
+local function recoverRide(resetCharacter)
+    if jobId=="Grab"then
+        Worker.NeedsReset=false;Worker.NeedsFreshVehicle=false;Worker.LegWatch=nil
+        stopInputs();restore();session=nil
+        Worker.NoWalk=false
+        status("Recovering ride")
+        return
+    end
+    local fareState=player:GetAttribute("DeliveryState")
+    local preserveFare=jobId=="Grab"and(fareState=="ToShop"or fareState=="ToHome")
+    if preserveFare then
+
+        resetCharacter=false;Worker.NeedsReset=false
+        Worker.LegWatch=nil
+        Worker.PreservedFares=(Worker.PreservedFares or 0)+1
+        status("Recovering current fare")
+    end
+    local oldSession=session
+    if oldSession and not oldSession.crashed then pcall(brake)end
+    stopInputs();restore();session=nil;if resetCharacter then Worker.LegWatch=nil end
+    local function garage(action,...)
+        local args=table.pack(...);local message
+        for attempt=1,5 do
+            if cancelled()then error("Stopped",0)end
+            local ok,value,detail=pcall(Net.invoke,Remotes.Garage,action,table.unpack(args,1,args.n))
+            if ok and(value==true or type(value)=="table")then task.wait(1.1);return value,detail end
+            message=ok and detail or value
+            task.wait(1.2)
+        end
+        error(tostring(message),0)
+    end
+    if resetCharacter then
+        status("Recovering job")
+        local state=player:GetAttribute("DeliveryState")
+        if state=="ToShop"or state=="ToHome"then
+            local ok,message=Net.invoke(Remotes.Delivery,"Cancel",nil)
+            assert(ok,tostring(message))
+            local untilAt=os.clock()+6
+            repeat task.wait(.1);state=player:GetAttribute("DeliveryState")until(state~="ToShop"and state~="ToHome")or os.clock()>untilAt or cancelled()
+            assert(state~="ToShop"and state~="ToHome","Cancellation not confirmed")
+            Worker.CancelledFares=(Worker.CancelledFares or 0)+1
+        end
+        if cancelled()then return end
+        local character=player.Character;local humanoid=character and character:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Health>0 then humanoid.Health=0 end
+        local untilAt=os.clock()+40
+        repeat
+            if cancelled()then return end
+            task.wait(.2)
+            local current=player.Character
+            local h=current and current:FindFirstChildOfClass("Humanoid")
+            if current~=character and h and h.Health>0 and current:FindFirstChild("HumanoidRootPart")then break end
+        until os.clock()>untilAt
+        local current=player.Character;local h=current and current:FindFirstChildOfClass("Humanoid")
+        assert(current~=character and h and h.Health>0,"Waiting for respawn")
+        Worker.Resets=(Worker.Resets or 0)+1;Worker.NeedsReset=false
+    else
+        status("Recovering crashed vehicle")
+        local untilAt=os.clock()+8
+        while oldSession and oldSession.crashed and os.clock()<untilAt and not cancelled()do task.wait(.2)end
+        local character=player.Character;local h=character and character:FindFirstChildOfClass("Humanoid")
+        if h and h.SeatPart then
+            if oldSession and isCar(oldSession.model)then Net.fire(RS.CarRemote,"Exit",oldSession.model,"Driver")
+            else Net.fire(RS.PCX160Remote,"Dismount","Start")end
+            local dismountAt=os.clock()+6
+            while h.SeatPart and os.clock()<dismountAt and not cancelled()do task.wait(.1)end
+            assert(not h.SeatPart,"Could not leave previous vehicle")
+        end
+    end
+    if cancelled()then return end
+    if jobId=="Grab"and not resetCharacter and oldSession and oldSession.model.Parent then
+        status("Bringing crashed vehicle back")
+        local accepted,reason=Net.invoke(Remotes.TuneShop,"Bring",oldSession.model)
+        if not accepted then Worker.NeedsReset=true;error("Vehicle bring failed: "..tostring(reason),0)end
+        Worker.BroughtVehicle=(Worker.BroughtVehicle or 0)+1
+        Worker.NeedsFreshVehicle=false;Worker.NoWalk=false;Worker.ExitedToRoad=true
+        task.wait(.6);return
+    end
+    if preserveFare then
+
+        Worker.NeedsFreshVehicle=false;Worker.NoWalk=true
+        return
+    end
+    local list
+    local oldVehicle=oldSession and oldSession.model
+    if(oldVehicle and oldVehicle.Parent)or(player:GetAttribute("VehicleCount")or 0)>0 then
+        local ok,message=garage("Despawn")
+        assert(ok,tostring(message))
+        local untilAt=os.clock()+6
+        while oldVehicle and oldVehicle.Parent and os.clock()<untilAt and not cancelled()do task.wait(.1)end
+        assert(not oldVehicle or not oldVehicle.Parent,"Old vehicle still spawned")
+    end
+    list=garage("List")
+    local untilAt=os.clock()+math.max(.8,tonumber(list and list.cooldown)or 0)
+    while os.clock()<untilAt and not cancelled()do task.wait(.1)end
+    if cancelled()then return end
+    if Config.SpawnOnRoad then Worker.ExitedToRoad=false end
+    if Config.GeneralTravelTween then Worker.TweenCharacterToRoad();Worker.ExitedToRoad=true
+    elseif Config.GrabRouteV2 then Worker.MoveCharacterToRoad();Worker.ExitedToRoad=true end
+    local ok,message=garage("Spawn",Config.VehicleId)
+    assert(ok,tostring(message));Worker.NoWalk=true
+    Worker.FreshVehicles=(Worker.FreshVehicles or 0)+1
+    Worker.NeedsFreshVehicle=false
+    if Config.RoadWorkArrival then
+        Worker.VehicleTweenDisabled=nil;Worker.VehicleTweenFailure=nil;Worker.VehicleTweenRetryAt=nil
+        Worker.DepartingRoad=false;Worker.AlleyExit=nil;Worker.AlleyEntered=nil
+        Worker.LastCornerTweenAt=nil;Worker.LastTurnTweenAt=nil
+        Worker.BrakeRampSince=nil;Worker.BrakeRampLast=nil
+    end
+    task.wait(.8)
+end
+
+function Worker.Run(maxTrips)
+    assert(not Worker.Running,"Already running")
+    Worker.Running,Worker.Cancelled=true,false
+    Worker.StartedAt=os.clock();Worker.StartEarned=player:GetAttribute("DeliveryEarned")or 0
+    local limit=maxTrips==nil and Config.MaxTrips or maxTrips
+    local fatal
+    while not cancelled()and(limit==0 or Worker.Trips<limit)do
+        local ok,message=xpcall(function()
+            waitFor(function()return player:GetAttribute("ProfileReady")and player.Character and player.Character:FindFirstChildOfClass("Humanoid")and player.Character.Humanoid.Health>0 end,30,"Waiting for respawn")
+            if Worker.NeedsReset or Worker.NeedsFreshVehicle then recoverRide(Worker.NeedsReset==true)end
+            if player:GetAttribute("Job")~=jobId then
+                if jobId=="Grab"then
+                    local accepted,reason=invoke(Remotes.Job,"Plan",jobId);assert(accepted,tostring(reason))
+                else
+                    restore();session=nil
+                    local enrollment=buildStationWorker(owner,jobId);Worker.Enrollment=enrollment
+                    local accepted,reason=enrollment.Run(0);Worker.Enrollment=nil
+                    assert(accepted,tostring(reason));check()
+                end
+            end
+            if not session or not session.model.Parent or session.seat.Occupant~=player.Character.Humanoid then
+                restore();session=nil;readyRide()
+            end
+            oneFare()
+        end,tostring)
+        if not ok and not cancelled()then
+            Worker.LastRecoveryRaw=tostring(message)
+            Worker.LastRecovery=owner:WorkError(message);Worker.Remounts=(Worker.Remounts or 0)+1
+            if Worker.NeedsReset or Worker.NeedsFreshVehicle then
+                local recovered,reason=pcall(recoverRide,Worker.NeedsReset==true)
+                if not recovered then Worker.LastRecovery=tostring(reason)end
+            else
+                status("Remounting")
+                stopInputs();restore();session=nil
+            end
+            task.wait(2)
+        end
+    end
+    pcall(brake);restore();Worker.StoppedAt=os.clock()
+    local state=player:GetAttribute("DeliveryState")
+    if jobId~="Grab"and(state=="Searching"or state=="Offer")then pcall(Net.invoke,Remotes.Delivery,"Stop",nil)end
+    Worker.Running=false;status("Stopped")
+    return fatal==nil,fatal
+end
+
+function Worker.StageCharacterTowardRoad(goal,nearRadius)
+    check();local character=player.Character;local root=character.HumanoidRootPart;local humanoid=character.Humanoid
+    assert(not humanoid.SeatPart,"Dismount before staged movement")
+    local path=PathfindingService:CreatePath({AgentRadius=2,AgentHeight=5,AgentCanJump=true,WaypointSpacing=20})
+    local computed=pcall(path.ComputeAsync,path,root.Position,goal);local points
+    if computed and path.Status==Enum.PathStatus.Success then points=path:GetWaypoints()
+    else assert(buildingClear(root.Position,goal),"Building blocks staging point");points={{Position=goal}}end
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include;params.FilterDescendantsInstances={workspace.Map,workspace.Terrain};params.RespectCanCollide=true
+    local rootHeight=humanoid.HipHeight+root.Size.Y*.5+.1
+    local offset=root.CFrame:ToObjectSpace(character:GetPivot());local stepSize=24;local stageDeadline=os.clock()+90;local attempts=0
+    for _,waypoint in ipairs(points)do
+        check();if flat(root.Position-goal).Magnitude<=(nearRadius or 24)then break end
+        local target=waypoint.Position
+        while flat(root.Position-target).Magnitude>1 do
+            check();assert(player.Character==character and humanoid.Health>0,"Character changed");attempts+=1;assert(os.clock()<stageDeadline and attempts<=300,"Exit timed out");if flat(root.Position-goal).Magnitude<=(nearRadius or 24)then break end
+            status("Moving toward road in stages")
+            local delta=target-root.Position;local at=root.Position+delta.Unit*math.min(stepSize,delta.Magnitude)
+            pcall(player.RequestStreamAroundAsync,player,at,1)
+            local floor=workspace:Raycast(Vector3.new(at.X,math.max(root.Position.Y,target.Y)+5,at.Z),Vector3.new(0,-28,0),params)
+            assert(floor and floor.Normal.Y>.6 and floor.Material~=Enum.Material.Water,"Staging surface unavailable")
+            at=Vector3.new(at.X,floor.Position.Y+rootHeight,at.Z)
+            character:PivotTo(CFrame.new(at)*root.CFrame.Rotation*offset)
+            humanoid:MoveTo(root.Position);humanoid:Move(Vector3.zero,false)
+            root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+            task.wait(.18);check()
+            if flat(root.Position-at).Magnitude>8 then
+                stepSize*=.5;assert(stepSize>=3,"Position changed after reduced movement")
+            else Worker.RoadStageWarps=(Worker.RoadStageWarps or 0)+1 end
+        end
+    end
+end
+function Worker.TweenCharacterToRoad()
+    check();assert(not session,"Dismount before road departure")
+    local character=player.Character;local humanoid=character.Humanoid;local root=character.HumanoidRootPart
+    assert(not humanoid.SeatPart,"Dismount before road departure")
+    local nearest=assert(Graph.nearest(root.Position),"No nearby road")
+    local point=Vector2.new(root.Position.X,root.Position.Z);local closest,best
+    for _,edge in ipairs(Graph.edges)do
+        local a,b=Graph.nodes[edge.a],Graph.nodes[edge.b];local delta=b-a
+        local t=math.clamp((point-a):Dot(delta)/math.max(.001,delta:Dot(delta)),0,1)
+        local distance=(point-(a+delta*t)).Magnitude
+        if not best or distance<best then best=distance;closest={A=a,B=b}end
+    end
+    local lane=Vector2.new(nearest.X,nearest.Y)
+    if closest then
+        local direction=(closest.B-closest.A).Unit;local normal=Vector2.new(direction.Y,-direction.X)
+        local kind=Worker.GrabRoadKind(closest.A,closest.B)
+        local offset=kind and kind.id=="main"and 28 or math.clamp((kind and kind.half or 12)*.5,3,16)
+        local side=(point-lane):Dot(normal)<0 and-1 or 1;lane+=normal*offset*side
+    end
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include;params.RespectCanCollide=true
+    local map=workspace.Map;local surfaces={}
+    for _,name in ipairs({"Road","Network","Sois","Expressway","MemorialBridge","Rangsit","NewTown"})do local folder=map:FindFirstChild(name);if folder then table.insert(surfaces,folder)end end
+    params.FilterDescendantsInstances=surfaces
+    local floor=workspace:Raycast(Vector3.new(lane.X,root.Position.Y+20,lane.Y),Vector3.new(0,-80,0),params)
+    assert(floor and floor.Normal.Y>.7,"No spawn ground")
+    local goal=floor.Position+Vector3.new(0,humanoid.HipHeight+root.Size.Y*.5+.1,0)
+    if flat(goal-root.Position).Magnitude>80 then Worker.StageCharacterTowardRoad(goal,60)end
+    local path=PathfindingService:CreatePath({AgentRadius=2,AgentHeight=5,AgentCanJump=true,WaypointSpacing=12})
+    local computed=pcall(path.ComputeAsync,path,root.Position,goal);local points
+    if computed and path.Status==Enum.PathStatus.Success then points=path:GetWaypoints()
+    else assert(buildingClear(root.Position,goal),"Building blocks road departure");points={{Position=goal}}end
+    local originals={};local tween,connection;local cleaned=false
+    local support=Instance.new("Part");support.Name="MahanakhonRoadDeparture";support.Size=Vector3.new(6,.4,6)
+    support.Anchored=true;support.Transparency=1;support.CanTouch=false;support.CanQuery=false;support.Parent=workspace
+    local function cleanup()
+        if cleaned then return end;cleaned=true
+        if tween then tween:Cancel()end;if connection then connection:Disconnect()end
+        for part,collide in pairs(originals)do if part.Parent then part.CanCollide=collide end end
+        support:Destroy();if Worker.RoadFootCleanup==cleanup then Worker.RoadFootCleanup=nil end
+    end
+    Worker.RoadFootCleanup=cleanup
+    local ok,message=xpcall(function()
+        status("Moving to road before spawning")
+        connection=RunService.Stepped:Connect(function()
+            for _,part in ipairs(character:GetDescendants())do if part:IsA("BasePart")then
+                if originals[part]==nil then originals[part]=part.CanCollide end;part.CanCollide=false
+            end end
+            root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+            support.CFrame=CFrame.new(root.Position-Vector3.new(0,humanoid.HipHeight+root.Size.Y*.5+.25,0))
+        end)
+        for _,waypoint in ipairs(points)do
+            check();local target=waypoint.Position+Vector3.new(0,humanoid.HipHeight+root.Size.Y*.5,0)
+            if waypoint==points[#points]then target=goal end
+            tween=game:GetService("TweenService"):Create(root,TweenInfo.new(math.max(.08,(root.Position-target).Magnitude/65),Enum.EasingStyle.Linear),{CFrame=CFrame.new(target)*root.CFrame.Rotation})
+            tween:Play();while tween.PlaybackState==Enum.PlaybackState.Playing do check();task.wait(.03)end
+        end
+        task.wait(.15);check();assert(flat(root.Position-goal).Magnitude<8,"Exit drift")
+    end,tostring)
+    cleanup();assert(ok,message)
+    Worker.RoadSpawnReady=true;Worker.RoadSpawnPosition=tostring(root.Position)
+end
+function Worker.PrepareTravelDeparture()
+    check();restore();session=nil
+    local humanoid=player.Character.Humanoid;local existing=vehicleModel(humanoid.SeatPart)
+    if existing then
+        if isCar(existing)then Net.fire(RS.CarRemote,"Exit",existing,"Driver")else Net.fire(RS.PCX160Remote,"Dismount","Start")end
+        local deadline=os.clock()+6
+        while humanoid.SeatPart and os.clock()<deadline do check();task.wait(.1)end
+        assert(not humanoid.SeatPart,"Could not dismount before departure")
+    end
+    Worker.TweenCharacterToRoad()
+    local owned=false
+    for _,model in ipairs(workspace.SpawnedVehicles:GetChildren())do if model:GetAttribute("OwnerUserId")==player.UserId then owned=true;break end end
+    if owned then local accepted,reason=invoke(Remotes.Garage,"Despawn");assert(accepted,tostring(reason));task.wait(.8)end
+    Worker.TravelSpawnPrepared=true
+end
+function Worker.DriveTravelTween(target,leg,expected,stopRadius)
+    check();assert(session,"Not seated")
+    Worker.LegTarget=target;Worker.LegWatch=nil;Worker.DriverVersion="TravelTween"
+    local originalTurnPlan=Worker.PassengerTurnPlan
+    Worker.PassengerTurnPlan=function(corner,progress,speed,car)
+        if not corner or corner.Angle<math.rad(5)then return nil end
+        local targetSpeed=math.min(corner.Speed or 60,corner.Angle>=math.rad(65)and 22 or corner.Angle>=math.rad(35)and 28 or 50)
+        local physical=math.max(0,(brakeDistance(speed,targetSpeed,car)-speed*.45-8)/1.08)
+        return {Speed=targetSpeed,Distance=corner.Entry-progress,Lead=physical+math.max(4,speed*.16),Ready=speed<=targetSpeed+1}
+    end
+    local ok,message=xpcall(function()
+        local model=routeModel(Worker.GrabRoutePoints(target));local began=os.clock();local blockedAt;local planAt=0
+        local state=expected or player:GetAttribute("DeliveryState")
+        while true do
+            check()
+            local remaining=flat(session.chassis.Position-target).Magnitude
+            if expected and player:GetAttribute("DeliveryArrived")==true then return end
+            if remaining<=(stopRadius or(expected and 5 or Config.StopRadius or 12))then Worker.StopTweenMotion();task.wait(.3);return end
+            assert(os.clock()-began<Config.TripTimeout,"Trip timed out")
+            speedLimit();local top=Worker.Limits.NativeTopStuds
+            local points,finish=Worker.GrabRouteChunk(model,180);local moved=false
+            Worker.Route=model.Points;status(leg or"Moving toward destination")
+            if points then moved=Worker.GrabOutsideTween(points,state,top,model,finish,true)end
+            if not moved then
+                Worker.StopTweenMotion()
+                for _,distance in ipairs({50,15,4})do
+                    local short,last=Worker.GrabRouteChunk(model,distance)
+                    if short and Worker.GrabOutsideTween(short,state,top,model,last,true)then moved=true;finish=last;break end
+                    Worker.StopTweenMotion()
+                end
+            end
+            Worker.StopTweenMotion()
+            if moved then
+                model.Progress=finish;local _,index=routePoint(model,finish);model.Cursor=index;nextTurn(model);blockedAt=nil
+            else
+                blockedAt=blockedAt or os.clock();status("Finding detour")
+                if os.clock()-planAt>2 then
+                    planAt=os.clock();local detour=detourRoute(model.Points,model.Cursor+1,Worker.LastBlockedInstance)
+                    model=routeModel(detour or Worker.GrabRoutePoints(target))
+                end
+                assert(os.clock()-blockedAt<25,"No detour")
+                task.wait(.2)
+            end
+        end
+    end,tostring)
+    Worker.PassengerTurnPlan=originalTurnPlan;Worker.StopTweenMotion();assert(ok,message)
+end
+function Worker.ShopTrip(target)
+    assert(not Worker.Running,"Already running")
+    Worker.Running,Worker.Cancelled=true,false
+    Config.GeneralTravelTween=true
+    Config.TripTimeout=180;Config.StopRadius=12;Config.ObstacleTween=true;Config.TweenArrival=true;Config.DirectMainRoad=true
+    Config.ArrivalGoal=target+Vector3.new(target.X<0 and 4 or -4,0,0)
+    local ok,message=xpcall(function()
+        Worker.PrepareTravelDeparture();prepareVehicle()
+        local tries=0
+        while CareShared.fuel(session.model)<=5 do
+            check();tries+=1;assert(tries<32,"No fueled vehicle")
+            owner.ShopVehicleFuel[Config.VehicleId]=CareShared.fuel(session.model)
+            Config.RandomChosen=false;prepareVehicle()
+        end
+        local road=Worker.GrabRoutePoints(target)
+        local near=road[math.max(1,#road-1)]
+        local roadside=Vector3.new(near.X,target.Y,near.Y)
+        Worker.DriveTravelTween(roadside,"Traveling to piston shop",nil,35)
+        brake()
+        local vehicle=session.model;local kind=sessionKind
+        restore();session=nil
+        status("Dismounting at shop")
+        if kind=="Car"then Net.fire(RS.CarRemote,"Exit",vehicle)
+        else Net.fire(RS.PCX160Remote,"Dismount","Start")end
+        local humanoid=player.Character:FindFirstChildOfClass("Humanoid")
+        local deadline=os.clock()+6
+        while humanoid.SeatPart and os.clock()<deadline do assert(not cancelled(),"Stopped");task.wait(.1)end
+        assert(not humanoid.SeatPart,"Could not dismount")
+        check()
+        local shop=workspace:FindFirstChild("PistonShop")
+        local prompt=shop and shop:FindFirstChildWhichIsA("ProximityPrompt",true)
+        assert(prompt,"Shop prompt unavailable")
+        local part=prompt.Parent
+        if part:IsA("Attachment")then part=part.Parent end
+        assert(part:IsA("BasePart"),"Shop entrance unavailable")
+        local character=player.Character;local root=character.HumanoidRootPart
+        local goal=part.Position+part.CFrame.LookVector*math.min(3,prompt.MaxActivationDistance*.4)
+        assert(flat(root.Position-goal).Magnitude<=100/.28,"Shop entrance too far away")
+        local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include;params.FilterDescendantsInstances={workspace.Map,workspace.Terrain,shop};params.RespectCanCollide=true
+        local floor=workspace:Raycast(goal+Vector3.new(0,8,0),Vector3.new(0,-28,0),params)
+        assert(floor and floor.Normal.Y>.7,"Shop entrance surface unavailable")
+        local position=Vector3.new(goal.X,floor.Position.Y+humanoid.HipHeight+root.Size.Y*.5,goal.Z)
+        status("Moving into shop")
+        character:PivotTo(CFrame.new(position)*root.CFrame.Rotation*root.CFrame:ToObjectSpace(character:GetPivot()))
+        humanoid:MoveTo(root.Position);humanoid:Move(Vector3.zero,false);root.AssemblyLinearVelocity=Vector3.zero
+        task.wait(.25);check()
+        assert((root.Position-part.Position).Magnitude<=prompt.MaxActivationDistance+1,"Shop prompt out of range")
+        status("Opening shop")
+        owner:HoldPrompt(prompt,function()return not cancelled()end)
+        task.wait(.5)
+        local stockRequestedAt=workspace:GetServerTimeNow()
+        owner:RefreshPistonStock()
+        for _=1,10 do
+            check()
+            if not owner.PistonStock.Busy and owner.PistonStock.Key==Config.ShopKey and(owner.PistonStock.UpdatedAt or 0)>=stockRequestedAt and next(owner.PistonStock.Items)then return end
+            if owner:CapturePistonStockUI(Config.ShopKey)then return end
+            task.wait(.25)
+        end
+        error("Shop stock unavailable",0)
+    end,tostring)
+    if session then pcall(brake)end
+    restore();Worker.Running=false
+    return ok,message
+end
+
+function Worker.FaceDirection(direction)
+    if not session or not owner:CanVehicleTween(session.model)then return false end
+    direction=flat(direction)
+    if direction.Magnitude<1 or math.abs(session.speed or 0)>10 then return false end
+    local vehicle=session.model;local character=player.Character
+    local chassis=session.chassis
+    local from=chassis.CFrame
+    local target=CFrame.lookAt(from.Position,from.Position+direction.Unit)
+    local relative=from:ToObjectSpace(vehicle:GetPivot())
+    local rider=from:ToObjectSpace(character:GetPivot())
+    local originals={}
+    local value=Instance.new("CFrameValue");value.Value=from
+    local priorBrake=session.braking
+    stopInputs();session.speed=0;session.braking=true
+    local connection,tween;local cleaned=false
+    local function cleanup()
+        if cleaned then return end;cleaned=true
+        if tween then tween:Cancel()end
+        if connection then connection:Disconnect()end
+        for part,collide in pairs(originals)do if part.Parent then part.CanCollide=collide end end
+        session.braking=priorBrake
+        value:Destroy()
+        if Worker.VehicleTurnCleanup==cleanup then Worker.VehicleTurnCleanup=nil end
+    end
+    Worker.VehicleTurnCleanup=cleanup
+    local ok=xpcall(function()
+        connection=RunService.Stepped:Connect(function()
+            if not vehicle.Parent then return end
+            for _,container in ipairs({vehicle,character})do for _,part in ipairs(container:GetDescendants())do if part:IsA("BasePart")then
+                if originals[part]==nil then originals[part]=part.CanCollide end
+                part.CanCollide=false;part.AssemblyLinearVelocity=Vector3.zero;part.AssemblyAngularVelocity=Vector3.zero
+            end end end
+            local cf=value.Value
+            local look=cf.LookVector
+            session.heading=math.atan2(-look.X,-look.Z);session.travel=session.heading;session.steerIn=0;session.speed=0
+            vehicle:PivotTo(cf*relative);character:PivotTo(cf*rider)
+        end)
+        local passenger=Config.FareAlleyRouting and jobId=="Grab"and player:GetAttribute("DeliveryState")=="ToHome"
+        local angle=math.acos(math.clamp(from.LookVector:Dot(target.LookVector),-1,1))
+        local duration=passenger and math.max(.35,angle/.8)or .35
+        tween=game:GetService("TweenService"):Create(value,TweenInfo.new(duration,passenger and Enum.EasingStyle.Linear or Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Value=target})
+        tween:Play()
+        while tween.PlaybackState==Enum.PlaybackState.Playing do check();task.wait(.03)end
+        session.heading=math.atan2(-direction.X,-direction.Z);session.travel=session.heading;session.steerIn=0
+    end,tostring)
+    cleanup()
+    if ok then Worker.TurnTweens=(Worker.TurnTweens or 0)+1 end
+    return ok
+end
+
+function Worker.MoveCharacterToRoad()
+    check();assert(not session,"Dismount before road departure")
+    local character=player.Character;local humanoid=character.Humanoid;local root=character.HumanoidRootPart
+    assert(not humanoid.SeatPart,"Dismount before road departure")
+    local nearest=assert(Graph.nearest(root.Position),"No nearby road")
+
+    local x=math.abs(nearest.X)<1 and(root.Position.X<0 and-Config.LaneOffset or Config.LaneOffset)or nearest.X
+    local goal=Vector3.new(x,root.Position.Y,nearest.Y)
+    if flat(goal-root.Position).Magnitude>24 then pcall(player.RequestStreamAroundAsync,player,goal,2)end
+    local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include;params.RespectCanCollide=true
+    params.FilterDescendantsInstances={workspace.Map.Road,workspace.Map:FindFirstChild("Network")or workspace.Map.Road}
+    local ground=workspace:Raycast(goal+Vector3.new(0,20,0),Vector3.new(0,-80,0),params)
+    assert(ground and ground.Normal.Y>.7,"No spawn ground")
+    local position=ground.Position+Vector3.new(0,humanoid.HipHeight+root.Size.Y/2,0)
+    if flat(root.Position-position).Magnitude>24 then Worker.StageCharacterTowardRoad(position,24)end
+    status("Moving to road before spawning")
+    local offset=root.CFrame:ToObjectSpace(character:GetPivot())
+    character:PivotTo((CFrame.new(position)*root.CFrame.Rotation)*offset)
+    humanoid:MoveTo(root.Position);humanoid:Move(Vector3.zero,false)
+    root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero
+    task.wait(.3);check()
+    assert(flat(root.Position-position).Magnitude<8,"Spawn drift")
+    Worker.RoadSpawnReady=true;Worker.RoadSpawnPosition=tostring(root.Position)
+end
+
+function Worker.ExitToRoad(target)
+    local position=session.chassis.Position
+    if jobId=="Grab"then
+        local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Include
+        params.FilterDescendantsInstances={workspace.Map.Road};params.RespectCanCollide=true
+        local floor=workspace:Raycast(position+Vector3.new(0,3,0),Vector3.new(0,-14,0),params)
+        if floor and floor.Normal.Y>.7 and floor.Material==Enum.Material.Asphalt then
+            Worker.ExitedToRoad=true;return
+        end
+    end
+    local nearest=Graph.nearest(position)
+    assert(nearest,"Road entrance unavailable")
+    local goal=Vector3.new(nearest.X,position.Y,nearest.Y)
+    if math.abs(goal.X)<1 then goal=Vector3.new(position.X<0 and-Config.LaneOffset or Config.LaneOffset,position.Y,goal.Z)end
+    local distance=flat(goal-position).Magnitude
+    if jobId=="Grab"and distance>=180 then
+
+        Worker.ExitedToRoad=true;Worker.SkippedParkingExit=true;return
+    end
+    assert(distance<180,"Spawn point too far from road")
+    status("Seated; moving to road")
+    local steps=math.max(1,math.ceil(distance/30))
+    for i=1,steps do
+        check()
+        local waypoint=position:Lerp(goal,i/steps)
+        if flat(waypoint-session.chassis.Position).Magnitude>2 then
+            Worker.DepartingRoad=true
+            local moved,result=pcall(tweenVehiclePast,nil,waypoint-session.chassis.Position,waypoint)
+            Worker.DepartingRoad=false
+            assert(moved and result,"Exit failed; move vehicle")
+        end
+    end
+    local points=laneRoute(target)
+    for _,point in ipairs(points)do
+        local direction=Vector3.new(point.X-session.chassis.Position.X,0,point.Y-session.chassis.Position.Z)
+        if direction.Magnitude>8 then
+            Worker.FaceDirection(direction)
+            break
+        end
+    end
+    Worker.ExitedToRoad=true
+end
+
+function Worker.TestDrive(target)
+    assert(not Worker.Running, "Already running")
+    Worker.Running, Worker.Cancelled, Worker.PeakSpeed = true, false, 0
+    local ok, message = xpcall(function()
+        Config.GeneralTravelTween=true
+        Worker.PrepareTravelDeparture()
+        readyRide()
+        Worker.DriveTo(target, "Driving to workplace")
+    end, tostring)
+    brake()
+    restore()
+    Worker.Running = false
+    return {
+        ok = ok, message = message, peakSpeed = Worker.PeakSpeed,
+        limits = Worker.Limits, brakeSpeed = Worker.LastBrakeSpeed,
+        remaining = session and (flat(session.chassis.Position) - flat(target)).Magnitude,
+        position = session and tostring(session.chassis.Position),
+        owner = session and isnetworkowner(session.chassis),
+    }
+end
+
+    return Worker
+end
+
+local main=env.__MahanakhonMahanakhon
+if main and main.Alive then
+    assert(not(main.Tune and main.Tune.Busy),"Stop tuning first")
+    assert(not(main.Grab and main.Grab.Running and not main.Farm.Enabled.Grab),"Stop the other driver first")
+    if main.Farm.Enabled.Grab then main:SetFarmEnabled("Grab",false,true)end
+end
+local function newDriver()
+    local worker=newGrab(Runtime,Vehicle=="Random"and"Current"or Vehicle,"Grab")
+    worker.Config.RandomVehicle=Vehicle=="Random"
+    worker.Config.WorkVehicle=true
+    worker.Config.SpawnOnRoad=true
+    worker.Config.RoadWorkArrival=true
+    worker.Config.FareAlleyRouting=true
+    worker.Config.StallTimeout=120
+    worker.Config.FareTurnTween=true
+    worker.Config.GrabRouteV2=true
+    worker.Config.GrabKeepTurnSpeed=true
+    worker.Config.GrabAcceleration=120
+    worker.Config.GrabBrakeAccel=180
+    worker.Config.GrabJerk=1000
+    worker.Config.GrabTurnSpeed=30
+    worker.Config.GrabArrivalSpeed=50
+    worker.Config.GrabArrivalRadius=70
+    worker.Config.FareArrivalRadius=28
+    worker.Config.ArrivalTweenSpeed=10
+    worker.Config.FareTurnTweenSpeed=40
+    worker.Config.FareAlleyApproach=32
+    return worker
+end
+
+ task.spawn(function()
+    local deadline=os.clock()+8
+    while Runtime.Alive and((prior and prior.Grab and prior.Grab.Running)or(main and main.Grab and main.Grab.Running))do
+        if os.clock()>deadline then Runtime.Farm.Status="Old runner still active";Runtime.Alive=false;return end
+        task.wait(.1)
+    end
+    while Runtime.Alive do
+        local worker=newDriver();Runtime.Grab=worker
+        local ok,reason=pcall(worker.Run)
+        if not Runtime.Alive then break end
+        Runtime.LastError=ok and worker.LastRecoveryRaw or tostring(reason)
+        worker.Shutdown()
+        task.wait(2)
+    end
+ end)
+return Runtime
