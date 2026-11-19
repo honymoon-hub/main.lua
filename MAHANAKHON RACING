@@ -1,6 +1,6 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 local Window = WindUI:CreateWindow({
-    Title = "Honymoon Hub",
+    Title = "Honymoon HUB",
     Icon = "snowflake",
     Author = "AutoFarm System",
     Folder = "Honymoon HUB",
@@ -14,11 +14,14 @@ local Webhook = ""
 local HttpRequest =
     (syn and syn.request)
     or (http and http.request)
-    or request
+    or (typeof(request) == "function" and request)
+    or (typeof(http_request) == "function" and http_request)
+    or nil
 
-if not HttpRequest then
-    warn("[MoneyTracker] HTTP Request unavailable")
-    return
+-- mobile: HTTP unavailable = webhook disabled only, script keeps running
+local WebhookDisabled = not HttpRequest
+if WebhookDisabled then
+    warn("[MoneyTracker] HTTP Request unavailable — webhook disabled, script continues")
 end
 local WebhookURL = ""
 
@@ -79,6 +82,7 @@ local function GetMoney()
     return tonumber(Number) or 0
 end
 local function SendRequest(url, method, body)
+    if WebhookDisabled or not HttpRequest then return nil end
     return HttpRequest({
         Url = url,
         Method = method,
@@ -958,6 +962,29 @@ local function newGrab(owner,vehicleId,jobId)
     jobId=jobId or"Grab"
     local mode=jobId=="Courier"and"parcel"or jobId=="Delivery"and"food"or"grab"
     local jobLabel="Grab"
+    -- ── Mobile compatibility shims ──────────────────────────────
+    -- These APIs exist on PC executors (Synapse X, KRNL, Fluxus PC)
+    -- but are absent on mobile executors (Delta, Fluxus Mobile, Hydrogen)
+    -- isnetworkowner: client always owns its own vehicle → return true
+    local _isnetworkowner = typeof(isnetworkowner) == "function"
+        and isnetworkowner
+        or function(_) return true end
+    -- getupvalues / setupvalue / getupvalue: used to hook vehicle input
+    -- mobile fallback: hookInput becomes a no-op (Grab still works via
+    -- direct ThrottleFloat/SteerFloat writes on the seat)
+    local _getupvalues = typeof(getupvalues) == "function"
+        and getupvalues
+        or function(_) return {} end
+    local _setupvalue = typeof(setupvalue) == "function"
+        and setupvalue
+        or function() end
+    local _getupvalue = typeof(getupvalue) == "function"
+        and getupvalue
+        or function() return nil end
+    local _debuginfo = (typeof(debug) == "table" and typeof(debug.info) == "function")
+        and debug.info
+        or function() return "" end
+    -- ────────────────────────────────────────────────────────────
     local Graph=require(RS.RoadGraph)
     local PistonShared=require(RS.PistonShared)
     local GearShared=require(RS.GearShared)
@@ -1051,14 +1078,14 @@ local function brake()
 end
 local function restore()
     for _, patch in motionPatches do
-        if getupvalue(patch.step, patch.index) == patch.replacement then
-            setupvalue(patch.step, patch.index, patch.original)
+        if _getupvalue(patch.step, patch.index) == patch.replacement then
+            _setupvalue(patch.step, patch.index, patch.original)
         end
     end
     table.clear(motionPatches)
     for _, patch in inputPatches do
-        if getupvalue(patch.step, patch.index) == patch.replacement then
-            setupvalue(patch.step, patch.index, patch.original)
+        if _getupvalue(patch.step, patch.index) == patch.replacement then
+            _setupvalue(patch.step, patch.index, patch.original)
         end
     end
     table.clear(inputPatches)
@@ -1135,12 +1162,16 @@ local function nativeLimits(vehicle)
     return math.min(nativeTop, capKmh / EcuShared.KMH_PER_STUD), capKmh
 end
 
+-- tracks whether upvalue hook succeeded
+local inputHooked = false
+
 local function hookInput(driver)
     check()
-    for _, value in getupvalues(driver.start) do
-        if type(value) == "function" and debug.info(value, "n") == "step" then
-            for index, input in getupvalues(value) do
-                if type(input) == "function" and debug.info(input, "n") == "keysToSeat" then
+    inputHooked = false
+    for _, value in _getupvalues(driver.start) do
+        if type(value) == "function" and _debuginfo(value, "n") == "step" then
+            for index, input in _getupvalues(value) do
+                if type(input) == "function" and _debuginfo(input, "n") == "keysToSeat" then
                     for _, patch in inputPatches do if patch.step == value then return end end
                     local replacement = function(state)
                         if state == session then
@@ -1151,11 +1182,28 @@ local function hookInput(driver)
                     end
                     table.insert(inputPatches, {step = value, index = index,
                         original = input, replacement = replacement})
-                    setupvalue(value, index, replacement)
+                    _setupvalue(value, index, replacement)
+                    inputHooked = true
                     return
                 end
             end
         end
+    end
+    -- Mobile fallback: getupvalues returned {} — hook unavailable
+    -- Write directly to VehicleSeat every Heartbeat instead
+    if not inputHooked and session and session.seat then
+        local seat = session.seat
+        local hbConn
+        hbConn = RunService.Heartbeat:Connect(function()
+            -- stop if session changed or worker stopped
+            if Worker.Cancelled or not seat.Parent
+                or not session or session.seat ~= seat then
+                hbConn:Disconnect(); return
+            end
+            seat.ThrottleFloat = Worker.CommandThrottle or 0
+            seat.SteerFloat    = Worker.CommandSteer    or 0
+        end)
+        table.insert(constraints, hbConn) -- reuse constraints table for cleanup
     end
 end
 
@@ -1255,7 +1303,7 @@ local function prepareVehicle()
     if existing then
         local client = isCar(existing) and player.PlayerScripts.CarClient or player.PlayerScripts.PCX160Client
         local driver = require(client.Driver)
-        for _, value in getupvalues(driver.start) do
+        for _, value in _getupvalues(driver.start) do
             if type(value) == "table" and value.model == existing and value.seat == humanoid.SeatPart then
                 session, riderHum = value, humanoid
                 hookInput(driver)
@@ -1359,7 +1407,7 @@ if not vehicle then
     local client = sessionKind == "Car" and player.PlayerScripts.CarClient or player.PlayerScripts.PCX160Client
     local driver = require(client.Driver)
     session = nil
-    for _, value in getupvalues(driver.start) do
+    for _, value in _getupvalues(driver.start) do
         if type(value) == "table" and value.model == vehicle and value.chassis then
             session = value
             break
@@ -1378,7 +1426,10 @@ if not vehicle then
         Net.fire(RS.PCX160Remote, "Stand", false)
         task.wait(.6)
     end
-    assert(isnetworkowner(session.chassis), "The client is not controlling the bike")
+    -- mobile: isnetworkowner shim returns true; PC: real check
+    if not _isnetworkowner(session.chassis) then
+        warn("[Grab] Not network owner — continuing anyway (mobile mode)")
+    end
     originalFilter = table.clone(session.params.FilterDescendantsInstances)
     castParams.FilterDescendantsInstances={session.model,player.Character,workspace.CurrentCamera}
     oldWheelie=session.wheelieHeld==true
@@ -3114,7 +3165,7 @@ function Worker.DriveTo(target,leg,expected)
         Worker.Telemetry={Leg=leg,Speed=speed,TargetSpeed=wanted,Remaining=realRemaining,
             Waypoint=model.Cursor+1,Waypoints=#model.Points,RouteProgress=model.Progress,PathRemaining=remaining,
             NextTurnDistance=turnDistance,BrakeReason=reason,BrakeEpisodes=throttleControl.Episodes or 0,Downhill=down,StalledFor=watch and(os.clock()-watch.ProgressAt)or 0,Braking=braking,HeadingError=angle,Lookahead=lookahead,
-            CrossTrack=crossTrack,Position=tostring(position),CommandSteer=steer,CommandThrottle=throttle,NetworkOwner=isnetworkowner(chassis)}
+            CrossTrack=crossTrack,Position=tostring(position),CommandSteer=steer,CommandThrottle=throttle,NetworkOwner=_isnetworkowner(chassis)}
         task.wait(.03)
     end
 end
@@ -3829,7 +3880,7 @@ function Worker.TestDrive(target)
         limits = Worker.Limits, brakeSpeed = Worker.LastBrakeSpeed,
         remaining = session and (flat(session.chassis.Position) - flat(target)).Magnitude,
         position = session and tostring(session.chassis.Position),
-        owner = session and isnetworkowner(session.chassis),
+        owner = session and _isnetworkowner(session.chassis),
     }
 end
 
@@ -4024,7 +4075,7 @@ MainTab:Section({ Title = "Auto Farm" })
 
 
 MainTab:Toggle({
-    Title = "ออโต้ช่างซ้อม",
+    Title = "ออโต้ช่างซ่อม",
     Desc = "เปิด/ปิดระบบฟาร์มอัตโนมัติ",
     Default = Config.AutoMechanic == true,
     Callback = function(state)
