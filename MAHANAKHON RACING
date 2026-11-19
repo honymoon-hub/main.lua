@@ -1,9 +1,9 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 local Window = WindUI:CreateWindow({
-    Title = "Honymoon HUB",
+    Title = "Honymoon Hub",
     Icon = "snowflake",
     Author = "AutoFarm System",
-    Folder = "Honymoon HUB",
+    Folder = "Honymoon Hub",
     Size = UDim2.fromOffset(580, 460),
     Transparent = true,
     Theme = "Dark",
@@ -4075,7 +4075,7 @@ MainTab:Section({ Title = "Auto Farm" })
 
 
 MainTab:Toggle({
-    Title = "ออโต้ช่างซ่อม",
+    Title = "ออโต้ช่างซ้อม",
     Desc = "เปิด/ปิดระบบฟาร์มอัตโนมัติ",
     Default = Config.AutoMechanic == true,
     Callback = function(state)
