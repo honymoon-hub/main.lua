@@ -1,9 +1,9 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 local Window = WindUI:CreateWindow({
-    Title = "MAHANAKHON RACING",
+    Title = "Honymoon HUB",
     Icon = "snowflake",
-    Author = "By Honymoon HUB",
-    Folder = "Honymoon Hub",
+    Author = "MAHANAKHON RACING",
+    Folder = "Honymoon HUB",
     Size = UDim2.fromOffset(580, 460),
     Transparent = true,
     Theme = "Dark",
